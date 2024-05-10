@@ -29,8 +29,8 @@ class Movie:
         return {
             'title': self.get_titles()[0],
             'year': self.get_year(),
-            'score': self.get_rate().score,
-            'votes': self.get_rate().votes
+            'score': self.get_rate().score if self.get_rate() is not None else None,
+            'votes': self.get_rate().votes if self.get_rate() is not None else None
         }
 
 
