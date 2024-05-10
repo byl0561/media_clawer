@@ -1,4 +1,3 @@
-
 import requests
 import bs4
 import re
@@ -36,6 +35,6 @@ def crawl_douban_250() -> list[DoubanMovie]:
             score = float(item.find('span', class_='rating_num').get_text().strip())
             votes = int(
                 item.find('div', class_='star').select_one('span:last-child').get_text().replace('人评价', '').strip())
-            movies.append(DoubanMovie(title, alias, year, country, style, poster, Rate(score, votes)))
+            movies.append(DoubanMovie(title, alias, year, country, style, poster, Rate(score, votes, '豆瓣电影')))
 
     return movies

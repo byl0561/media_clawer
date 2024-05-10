@@ -1,13 +1,15 @@
 class Rate:
-    def __init__(self, score: float, votes: int):
+    def __init__(self, score: float, votes: int, type: str):
         self.score = score
         self.votes = votes
+        self.type = type
 
 
 class MovieSet:
-    def __init__(self, id: int, name: str):
+    def __init__(self, id: int, name: str, type: str):
         self.id = id
         self.name = name
+        self.type = type
 
 
 class Movie:
@@ -20,8 +22,16 @@ class Movie:
     def get_collection_name(self) -> str:
         return None
 
+    def get_rate(self) -> Rate:
+        return None
+
     def to_dict(self):
-        return {'title': self.get_titles()[0], 'year': self.get_year()}
+        return {
+            'title': self.get_titles()[0],
+            'year': self.get_year(),
+            'score': self.get_rate().score,
+            'votes': self.get_rate().votes
+        }
 
 
 class DoubanMovie(Movie):
@@ -49,6 +59,9 @@ class DoubanMovie(Movie):
 
     def get_year(self) -> int:
         return self.year
+
+    def get_rate(self) -> Rate:
+        return self.douban_rate
 
 
 class LocalMovie(Movie):
@@ -78,3 +91,38 @@ class LocalMovie(Movie):
 
     def get_collection_name(self) -> str:
         return self.tmdb_set.name if self.tmdb_set is not None else None
+
+    def get_rate(self) -> Rate:
+        return self.tmdb_rate
+
+
+class TmdbMovie(Movie):
+    def __init__(self,
+                 title: str,
+                 original_title: str,
+                 year: int,
+                 language: str,
+                 poster: str,
+                 rate: Rate,
+                 id: int,
+                 move_set: MovieSet):
+        self.title = title
+        self.original_title = original_title
+        self.year = year
+        self.language = language
+        self.poster = poster
+        self.rate = rate
+        self.id = id
+        self.move_set = move_set
+
+    def get_titles(self) -> list[str]:
+        return [self.title, self.original_title]
+
+    def get_year(self) -> int:
+        return self.year
+
+    def get_collection_name(self) -> str:
+        return self.move_set.name if self.move_set is not None else None
+
+    def get_rate(self) -> Rate:
+        return self.rate

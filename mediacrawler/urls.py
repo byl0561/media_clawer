@@ -19,4 +19,5 @@ import movie.views as movie_views
 
 urlpatterns = [
     path('movie/douban250/diff', movie_views.diff_douban_250),
+    path('movie/local/complete', movie_views.complete_local_movie_collection),
 ]

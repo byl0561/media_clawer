@@ -28,6 +28,7 @@ def crawl_local() -> list[LocalMovie]:
                 tmdb_set_name = root_element.find('./set/name').text if root_element.find(
                     './set/name') is not None else None
                 movies.append(LocalMovie(title, original_title, year, country_list, poster,
-                                         Rate(tmdb_score, tmdb_votes), tmdb_id, MovieSet(tmdb_set_id, tmdb_set_name)))
+                                         Rate(tmdb_score, tmdb_votes, 'TMDB'), tmdb_id,
+                                         MovieSet(tmdb_set_id, tmdb_set_name, 'TMDB')))
 
     return movies
