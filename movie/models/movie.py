@@ -19,10 +19,10 @@ class Movie:
     def get_year(self) -> int:
         return -1
 
-    def get_collection_name(self) -> str:
+    def get_collection_name(self) -> str or None:
         return None
 
-    def get_rate(self) -> Rate:
+    def get_rate(self) -> Rate or None:
         return None
 
     def to_dict(self):

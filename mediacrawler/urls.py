@@ -16,8 +16,10 @@ Including another URLconf
 """
 from django.urls import path
 import movie.views as movie_views
+import tvshow.views as tv_views
 
 urlpatterns = [
     path('movie/douban250/diff', movie_views.diff_douban_250),
     path('movie/local/complete', movie_views.complete_local_movie_collection),
+    path('tv/douban100/diff', tv_views.diff_douban_tv_show_100),
 ]
