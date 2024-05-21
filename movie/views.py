@@ -2,19 +2,16 @@ import time
 
 from django.http import JsonResponse
 
+from constant import movie_folder
 from movie.utils.local_movie import *
 from movie.utils.douban_movie import *
 from movie.utils.tmdb_movie import *
 from movie.utils.common import *
 
-movie_folder = '/Volumes/Movie/'
-
-
-# Create your views here.
 
 def diff_douban_250(request):
     douban_250_movie = crawl_douban_250()
-    local_movie = crawl_local()
+    local_movie = crawl_local(movie_folder)
     missing_movies = get_missing_movies(douban_250_movie, local_movie)
     extra_movies = get_extra_movies(douban_250_movie, local_movie)
     retained_extra_movie_set_names = set([extra_movie.get_collection_name() for extra_movie in extra_movies
@@ -34,7 +31,7 @@ def is_retained(movie: Movie) -> bool:
 
 
 def complete_local_movie_collection(request):
-    local_movie = crawl_local()
+    local_movie = crawl_local(movie_folder)
 
     existing_movie_sets = {}
     for movie in local_movie:

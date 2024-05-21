@@ -3,10 +3,8 @@ import os
 from movie.models.movie import LocalMovie, Rate, MovieSet
 import xml.etree.ElementTree as ET
 
-movie_folder = '/Volumes/Movie/'
 
-
-def crawl_local() -> list[LocalMovie]:
+def crawl_local(movie_folder: str) -> list[LocalMovie]:
     movies = []
 
     for root, dirs, files in os.walk(movie_folder):
