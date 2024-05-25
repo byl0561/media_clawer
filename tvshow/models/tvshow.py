@@ -37,7 +37,7 @@ class TvShow:
     def get_titles(self) -> list[str]:
         return []
 
-    def get_year(self) -> list[int]:
+    def get_years(self) -> list[int]:
         return []
 
     def get_rate(self) -> Rate or None:
@@ -49,7 +49,7 @@ class TvShow:
     def to_dict(self):
         return {
             'title': self.get_titles()[0],
-            'year': self.get_year(),
+            'year': self.get_years(),
             'score': self.get_rate().score if self.get_rate() is not None else None,
             'votes': self.get_rate().votes if self.get_rate() is not None else None
         }
@@ -73,8 +73,8 @@ class DoubanTvShow(TvShow):
     def get_titles(self) -> list[str]:
         return [self.title]
 
-    def get_year(self) -> list[int]:
-        return [self.year]
+    def get_years(self) -> list[int]:
+        return [self.year, self.year]
 
     def get_rate(self) -> Rate:
         return self.douban_rate
@@ -101,7 +101,7 @@ class LocalTvShow(TvShow):
     def get_titles(self) -> list[str]:
         return [self.title, self.original_title]
 
-    def get_year(self) -> list[int]:
+    def get_years(self) -> list[int]:
         return [self.year, self.get_season(self.max_season).get_year()]
 
     def get_rate(self) -> Rate:
