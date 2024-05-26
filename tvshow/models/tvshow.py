@@ -84,6 +84,7 @@ class LocalTvShow(TvShow):
     def __init__(self,
                  title: str,
                  original_title: str,
+                 alias: list[str],
                  year: int,
                  poster: str,
                  tmdb_rate: Rate,
@@ -91,6 +92,7 @@ class LocalTvShow(TvShow):
                  seasons: list[Season]):
         self.title = title
         self.original_title = original_title
+        self.alias = alias
         self.year = year
         self.poster = poster
         self.tmdb_rate = tmdb_rate
@@ -99,7 +101,9 @@ class LocalTvShow(TvShow):
         self.max_season = seasons[-1].num
 
     def get_titles(self) -> list[str]:
-        return [self.title, self.original_title]
+        titles = [self.title, self.original_title]
+        titles.extend(self.alias)
+        return titles
 
     def get_years(self) -> list[int]:
         return [self.year, self.get_season(self.max_season).get_year()]

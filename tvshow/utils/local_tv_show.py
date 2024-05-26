@@ -21,6 +21,11 @@ def crawl_local(tv_show_folder: str) -> list[LocalTvShow]:
                 tmdb_votes = int(root_element.find('votes').text) if root_element.find('votes') is not None else int(root_element.find("./ratings/rating[@name='themoviedb']/votes").text)
                 tmdb_id = int(root_element.find("./uniqueid[@type='tmdb']").text)
 
+                alias = []
+                if os.path.exists(os.path.join(root, 'alias.txt')):
+                    with open(os.path.join(root, 'alias.txt'), 'r') as f:
+                        alias = f.readlines()
+
                 num_2_season_name = dict()
                 for child in root_element:
                     if child.tag == 'namedseason':
@@ -48,7 +53,7 @@ def crawl_local(tv_show_folder: str) -> list[LocalTvShow]:
                     seasons.append(LocalSeason(season_num, num_2_season_name.get(season_num), episodes))
 
                 seasons = sorted(seasons, key=lambda x: x.num)
-                tv_shows.append(LocalTvShow(title, original_title, year, poster,
+                tv_shows.append(LocalTvShow(title, original_title, alias, year, poster,
                                             Rate(tmdb_score, tmdb_votes, 'TMDB'), tmdb_id,
                                             seasons))
     return tv_shows

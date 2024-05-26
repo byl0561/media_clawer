@@ -1,5 +1,6 @@
 from tvshow.models.tvshow import *
 import difflib
+import re
 
 
 def is_overlapping(interval1, interval2):
@@ -20,7 +21,9 @@ def tv_show_similarity(show1: TvShow, show2: TvShow) -> bool:
 
     for show1_name in show1_names:
         for show2_name in show2_names:
-            if difflib.SequenceMatcher(None, show1_name, show2_name).ratio() > 0.9:
+            show1_name = re.sub(r'\([^)]*\)', '', show1_name)
+            show2_name = re.sub(r'\([^)]*\)', '', show2_name)
+            if difflib.SequenceMatcher(None, show1_name, show2_name).ratio() > 0.8:
                 return True
 
     return False

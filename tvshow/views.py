@@ -23,5 +23,4 @@ def diff_douban_tv_show_100(request):
 
 
 def is_retained(tv_show: TvShow) -> bool:
-    return False
-    # return movie.get_rate().score > 7.5 and movie.get_rate().votes > 500
+    return tv_show.get_rate().score > 8.0 and tv_show.get_rate().votes > 50
