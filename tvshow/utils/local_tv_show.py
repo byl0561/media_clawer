@@ -32,6 +32,7 @@ def crawl_local(tv_show_folder: str) -> list[LocalTvShow]:
                         num_2_season_name[int(child.attrib['number'])] = child.text
 
                 season_num_2_episodes = dict()
+                shadow_episodes = list()
                 for child, dirs, files in os.walk(root):
                     for file in files:
                         if file != 'tvshow.nfo' and file != 'season.nfo' and file.endswith('.nfo'):
@@ -47,6 +48,18 @@ def crawl_local(tv_show_folder: str) -> list[LocalTvShow]:
                             episodes.append(LocalEpisode(episode_num, episode_title, episode_date, run_minus))
                             season_num_2_episodes[season_num] = episodes
 
+                        elif file == 'checked_episode.txt':
+                            checked_episode = 0
+                            with open(os.path.join(child, 'checked_episode.txt'), 'r') as f:
+                                checked_episode = int(f.readline())
+                            season_folder_name = child.split('/')[-1]
+
+                            if season_folder_name == 'Specials':
+                                shadow_episodes.append(LocalShadowSeason(0, 'Specials', checked_episode))
+                            else:
+                                season_num = int(season_folder_name.replace('Season ', ''))
+                                shadow_episodes.append(LocalShadowSeason(season_num, season_folder_name, checked_episode))
+
                 seasons = list()
                 for season_num, episodes in season_num_2_episodes.items():
                     episodes = sorted(episodes, key=lambda x: x.num)
@@ -55,5 +68,5 @@ def crawl_local(tv_show_folder: str) -> list[LocalTvShow]:
                 seasons = sorted(seasons, key=lambda x: x.num)
                 tv_shows.append(LocalTvShow(title, original_title, alias, year, poster,
                                             Rate(tmdb_score, tmdb_votes, 'TMDB'), tmdb_id,
-                                            seasons))
+                                            seasons, shadow_episodes))
     return tv_shows

@@ -22,4 +22,5 @@ urlpatterns = [
     path('movie/douban250/diff', movie_views.diff_douban_250),
     path('movie/local/complete', movie_views.complete_local_movie_collection),
     path('tv/douban100/diff', tv_views.diff_douban_tv_show_100),
+    path('tv/loacl/season/missing', tv_views.find_lost_local_season)
 ]

@@ -2,7 +2,6 @@ import time
 
 from django.http import JsonResponse
 
-from constant import movie_folder
 from movie.utils.local_movie import *
 from movie.utils.douban_movie import *
 from movie.utils.tmdb_movie import *
@@ -45,7 +44,7 @@ def complete_local_movie_collection(request):
     resp_dict = {}
     for tmdb_set_id, tmdb_ids in existing_movie_sets.items():
         time.sleep(0.2)
-        tmdb_movies_in_set = get_movies_in_set(tmdb_set_id)
+        tmdb_movies_in_set = get_tmdb_movies_in_set(tmdb_set_id)
         missing_movies = []
         for tmdb_movie in tmdb_movies_in_set:
             if tmdb_movie.id not in tmdb_ids and legal_movie(tmdb_movie):
@@ -56,6 +55,12 @@ def complete_local_movie_collection(request):
     return JsonResponse(resp_dict)
 
 
-def legal_movie(movie: Movie) -> bool:
-    return (0 < movie.get_year() < int(datetime.now().year) or
-            (movie.get_year() == int(datetime.now().year) and movie.get_rate().score > 0))
+def legal_movie(movie: TmdbMovie) -> bool:
+    date_str = movie.get_date()
+    if len(date_str) == 0:
+        return False
+
+    timestamp = datetime.strptime(date_str, "%Y-%m-%d")
+    today = datetime.today()
+    delta = today - timestamp
+    return delta.days > 90

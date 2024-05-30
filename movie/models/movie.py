@@ -1,3 +1,6 @@
+from datetime import datetime
+
+
 class Rate:
     def __init__(self, score: float, votes: int, type: str):
         self.score = score
@@ -25,7 +28,7 @@ class Movie:
     def get_rate(self) -> Rate or None:
         return None
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'title': self.get_titles()[0],
             'year': self.get_year(),
@@ -100,7 +103,7 @@ class TmdbMovie(Movie):
     def __init__(self,
                  title: str,
                  original_title: str,
-                 year: int,
+                 date: str or None,
                  language: str,
                  poster: str,
                  rate: Rate,
@@ -108,7 +111,7 @@ class TmdbMovie(Movie):
                  move_set: MovieSet):
         self.title = title
         self.original_title = original_title
-        self.year = year
+        self.date = date
         self.language = language
         self.poster = poster
         self.rate = rate
@@ -119,7 +122,10 @@ class TmdbMovie(Movie):
         return [self.title, self.original_title]
 
     def get_year(self) -> int:
-        return self.year
+        return int(datetime.strptime(self.date, "%Y-%m-%d").year if len(self.date) > 0 else 0)
+
+    def get_date(self) -> str:
+        return self.date
 
     def get_collection_name(self) -> str:
         return self.move_set.name if self.move_set is not None else None
