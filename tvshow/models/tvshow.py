@@ -1,3 +1,6 @@
+from datetime import datetime
+
+
 class Rate:
     def __init__(self, score: float, votes: int, type: str):
         self.score = score
@@ -31,6 +34,9 @@ class Season:
 
     def get_year(self) -> int:
         return -1
+
+    def list_episodes(self) -> list[Episode] or None:
+        return None
 
     def to_dict(self) -> dict:
         return {
@@ -96,7 +102,7 @@ class LocalEpisode(Episode):
         self.run_minus = run_minus
 
     def get_year(self) -> int:
-        return int(self.date[:4])
+        return int(datetime.strptime(self.date, "%Y-%m-%d").year if len(self.date) > 0 else 0)
 
 
 class LocalSeason(Season):
@@ -116,6 +122,9 @@ class LocalSeason(Season):
         if len(self.episodes) == 0:
             return -1
         return self.get_episode(self.min_episode).get_year()
+
+    def list_episodes(self) -> list[LocalEpisode] or None:
+        return list(self.episodes.values())
 
 
 class LocalShadowSeason(Season):
@@ -137,7 +146,7 @@ class LocalTvShow(TvShow):
                  tmdb_rate: Rate,
                  tmdb_id: int,
                  seasons: list[LocalSeason],
-                 shadow_seasons: list[LocalShadowSeason],):
+                 shadow_seasons: list[LocalShadowSeason], ):
         self.title = title
         self.original_title = original_title
         self.alias = alias
@@ -169,14 +178,51 @@ class LocalTvShow(TvShow):
     def list_seasons(self) -> list[LocalSeason]:
         return list(self.seasons.values())
 
+    def map_season_max_episode(self) -> dict[int, int]:
+        season_max_episode = {}
+        for season in self.seasons.values():
+            season_max_episode[season.num] = season.get_max_episode_num()
+        for season in self.shadow_seasons.values():
+            season_max_episode[season.num] = max(season.get_max_episode_num(), season_max_episode.get(season.num, 0))
+        return season_max_episode
+
+
+class TmdbEpisode(Episode):
+    def __init__(self, num: int, name: str, date: str, run_minus: int):
+        super().__init__(num, name)
+        self.date = date
+        self.run_minus = run_minus
+
+    def get_year(self) -> int:
+        return int(datetime.strptime(self.date, "%Y-%m-%d").year if len(self.date) > 0 else 0)
+
+    def get_date(self) -> str:
+        return self.date
+
 
 class TmdbSeason(Season):
     def __init__(self,
                  num: int,
                  name: str,
-                 date: str or None):
+                 date: str or None,
+                 episodes: list[TmdbEpisode], ):
         super().__init__(num, name)
         self.date = date
+        self.episodes = {episode.num: episode for episode in episodes}
+        self.max_episode = episodes[-1].num if len(episodes) > 0 else 0
+        self.min_episode = episodes[0].num if len(episodes) > 0 else 0
+
+    def get_episode(self, episode_num: int) -> TmdbEpisode or None:
+        return self.episodes.get(episode_num)
+
+    def get_max_episode_num(self) -> int:
+        return self.max_episode
+
+    def get_year(self) -> int:
+        return int(datetime.strptime(self.date, "%Y-%m-%d").year if len(self.date) > 0 else 0)
+
+    def list_episodes(self) -> list[TmdbEpisode] or None:
+        return list(self.episodes.values())
 
     def get_date(self) -> str:
         return self.date
