@@ -92,7 +92,7 @@ class LocalMovie(Movie):
     def get_year(self) -> int:
         return self.year
 
-    def get_collection_name(self) -> str:
+    def get_collection_name(self) -> str or None:
         return self.tmdb_set.name if self.tmdb_set is not None else None
 
     def get_rate(self) -> Rate:
@@ -127,7 +127,7 @@ class TmdbMovie(Movie):
     def get_date(self) -> str:
         return self.date
 
-    def get_collection_name(self) -> str:
+    def get_collection_name(self) -> str or None:
         return self.move_set.name if self.move_set is not None else None
 
     def get_rate(self) -> Rate:

@@ -41,7 +41,7 @@ def crawl_local(tv_show_folder: str) -> list[LocalTvShow]:
                             season_num = int(tree.find('season').text)
                             episode_num = int(tree.find('episode').text)
                             episode_title = tree.find('title').text
-                            episode_date = tree.find('premiered').text
+                            episode_date = tree.find('premiered').text if tree.find('premiered') is not None else tree.find('aired')
                             run_minus = int(tree.find('runtime').text)
 
                             episodes = season_num_2_episodes.get(season_num, [])

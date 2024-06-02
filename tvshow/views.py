@@ -91,7 +91,6 @@ def find_lost_local_episode(request):
     return JsonResponse(missing)
 
 
-
 def legal_episode(episode: TmdbEpisode) -> bool:
     date_str = episode.get_date()
     if date_str is None or len(date_str) == 0:
@@ -100,3 +99,15 @@ def legal_episode(episode: TmdbEpisode) -> bool:
     timestamp = datetime.strptime(date_str, "%Y-%m-%d")
     today = datetime.today()
     return timestamp < today
+
+
+def diff_bangumi_tv_anime_100(request):
+    # douban_100_tv_show_all = crawl_dou_list('https://www.douban.com/doulist/116238969/')
+    # douban_100_tv_show_2014_2024 = crawl_dou_list('https://www.douban.com/doulist/113919174/')
+    # douban_tv_shows = combine_tv_show(douban_100_tv_show_all, douban_100_tv_show_2014_2024)
+    local_animates = crawl_local(tv_folder)
+
+    # missing_tv_shows = get_missing_tv_shows(douban_tv_shows, local_tv_shows)
+    # extra_tv_shows = get_missing_tv_shows(local_tv_shows, douban_tv_shows)
+
+    return JsonResponse([local_anime.to_dict() for local_anime in local_animates], safe=False)

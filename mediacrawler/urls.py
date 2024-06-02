@@ -24,4 +24,5 @@ urlpatterns = [
     path('tv/douban100/diff', tv_views.diff_douban_tv_show_100),
     path('tv/local/season/missing', tv_views.find_lost_local_season),
     path('tv/local/episode/missing', tv_views.find_lost_local_episode),
+    path('anime/bangumi/diff', tv_views.diff_bangumi_tv_anime_100),
 ]
