@@ -36,12 +36,14 @@ def crawl_local(tv_show_folder: str) -> list[LocalTvShow]:
                 for child, dirs, files in os.walk(root):
                     for file in files:
                         if file != 'tvshow.nfo' and file != 'season.nfo' and file.endswith('.nfo'):
+                            if 'PART' in file or 'part' in file:
+                                continue
                             nfo_path = os.path.join(child, file)
                             tree = ET.parse(nfo_path)
                             season_num = int(tree.find('season').text)
                             episode_num = int(tree.find('episode').text)
                             episode_title = tree.find('title').text
-                            episode_date = tree.find('premiered').text if tree.find('premiered') is not None else tree.find('aired')
+                            episode_date = tree.find('premiered').text if tree.find('premiered') is not None else (tree.find('aired').text if tree.find('aired') is not None else None)
                             run_minus = int(tree.find('runtime').text)
 
                             episodes = season_num_2_episodes.get(season_num, [])

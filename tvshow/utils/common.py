@@ -3,10 +3,10 @@ import difflib
 import re
 
 
-def is_overlapping(interval1, interval2):
-    if interval1[1] < interval2[0] or interval2[1] < interval1[0]:
-        return False
-    return True
+def gap_year(interval1, interval2) -> int:
+    start1, end1 = interval1
+    start2, end2 = interval2
+    return max(0, max(start1, start2) - min(end1, end2))
 
 
 def tv_show_similarity(show1: TvShow, show2: TvShow) -> bool:
@@ -16,7 +16,7 @@ def tv_show_similarity(show1: TvShow, show2: TvShow) -> bool:
     show2_names = show2.get_titles()
     show2_years = show2.get_years()
 
-    if is_overlapping(show1_years, show2_years) > 2:
+    if gap_year(show1_years, show2_years) > 2:
         return False
 
     for show1_name in show1_names:

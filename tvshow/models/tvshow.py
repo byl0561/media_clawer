@@ -95,14 +95,42 @@ class DoubanTvShow(TvShow):
         return self.douban_rate
 
 
+class BangumiTvShow(TvShow):
+    def __init__(self,
+                 title: str,
+                 origin_title: str or None,
+                 year: int or None,
+                 poster: str,
+                 bangumi_rate: Rate):
+        self.title = title
+        self.origin_title = origin_title
+        self.year = year
+        self.poster = poster
+        self.bangumi_rate = bangumi_rate
+
+    def get_titles(self) -> list[str]:
+        titles = [self.title]
+        if self.origin_title is not None:
+            titles.append(self.origin_title)
+        return titles
+
+    def get_years(self) -> list[int]:
+        return [self.year, self.year]
+
+    def get_rate(self) -> Rate:
+        return self.bangumi_rate
+
+
 class LocalEpisode(Episode):
-    def __init__(self, num: int, name: str, date: str, run_minus: int):
+    def __init__(self, num: int, name: str, date: str or None, run_minus: int):
         super().__init__(num, name)
         self.date = date
         self.run_minus = run_minus
 
     def get_year(self) -> int:
-        return int(datetime.strptime(self.date, "%Y-%m-%d").year if len(self.date) > 0 else 0)
+        if self.date is None:
+            return -1
+        return int(datetime.strptime(self.date, "%Y-%m-%d").year if len(self.date) > 0 else -1)
 
 
 class LocalSeason(Season):
