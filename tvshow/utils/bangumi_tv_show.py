@@ -36,16 +36,16 @@ def crawl_bangumi_tv_show_80() -> list[BangumiTvShow]:
             title = item.find('a', class_="l").get_text().strip().split(' ')[title_index]
             title = trim_title(title)
             origin_title = item.find('small', class_="grey").get_text().strip().split(' ')[title_index] if item.find('small', class_="grey") is not None else None
-            match = re.search(r'(\d{4})年', item.find('p', class_="info tip").get_text().strip())
+            match = re.search(r'\d{4}年\d{1,2}月\d{1,2}日', item.find('p', class_="info tip").get_text().strip())
             if match is None:
                 continue
-            year = int(match.group(1))
+            date = match.group()
             poster = item.find('span', class_="image").find('img').get('src').strip()
             score = float(item.find('p', class_="rateInfo").find('small', class_='fade').get_text().strip())
             votes = int(item.find('p', class_="rateInfo").find('span', class_='tip_j').get_text().replace('人评分)',
                                                                                                           '').replace(
                 '(', '').strip())
-            anime = BangumiTvShow(title, origin_title, year, poster, Rate(score, votes, 'Bangumi'))
+            anime = BangumiTvShow(title, origin_title, date, poster, Rate(score, votes, 'Bangumi'))
 
             titles = anime.get_titles()
             duplicated = False
@@ -72,6 +72,12 @@ def check(anime: BangumiTvShow) -> bool:
     if years_diff > 15:
         return False
 
+    timestamp = datetime.strptime(anime.get_date(), "%Y年%m月%d日")
+    today = datetime.today()
+    delta = today - timestamp
+    if delta.days <= 90:
+        return False
+
     rate = anime.get_rate()
     if rate.votes < 2000:
         return False
@@ -92,13 +98,14 @@ def trim_title(title: str or None) -> str or None:
         '物语': '物语系列',
         'BanG': "BanG Dream! It's MyGO!!!!!",
         '辉夜大小姐想让我告白': '辉夜大小姐想让我告白',
-        '爆漫王。': '爆漫王。',
+        '爆漫王': '爆漫王',
         'GIRLS': 'GIRLS BAND CRY',
         '86': '86-不存在的战区-',
         'NOMAD': 'MEGALO BOX',
         'MEGALO': 'MEGALO BOX',
         '为美好的世界献上祝福！': '为美好的世界献上祝福！',
-        '寄生兽': '寄生兽：生命的准则'
+        '寄生兽': '寄生兽：生命的准则',
+        '钢之炼金术师': '钢之炼金术师 FULLMETAL ALCHEMIST',
     }
     for key, value in replace_titles.items():
         if key in title:

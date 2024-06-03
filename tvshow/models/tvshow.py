@@ -99,12 +99,12 @@ class BangumiTvShow(TvShow):
     def __init__(self,
                  title: str,
                  origin_title: str or None,
-                 year: int or None,
+                 date: str,
                  poster: str,
                  bangumi_rate: Rate):
         self.title = title
         self.origin_title = origin_title
-        self.year = year
+        self.date = date
         self.poster = poster
         self.bangumi_rate = bangumi_rate
 
@@ -115,7 +115,11 @@ class BangumiTvShow(TvShow):
         return titles
 
     def get_years(self) -> list[int]:
-        return [self.year, self.year]
+        year = int(datetime.strptime(self.date, "%Y年%m月%d日").year if len(self.date) > 0 else -1)
+        return [year, year]
+
+    def get_date(self) -> str:
+        return self.date
 
     def get_rate(self) -> Rate:
         return self.bangumi_rate
