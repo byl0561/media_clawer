@@ -16,7 +16,7 @@ def tv_show_similarity(show1: TvShow, show2: TvShow) -> bool:
     show2_names = show2.get_titles()
     show2_years = show2.get_years()
 
-    if gap_year(show1_years, show2_years) > 2:
+    if gap_year(show1_years, show2_years) > 3:
         return False
 
     for show1_name in show1_names:
