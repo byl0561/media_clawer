@@ -22,7 +22,9 @@ urlpatterns = [
     path('movie/douban250/diff', movie_views.diff_douban_250),
     path('movie/local/collection/complete', movie_views.complete_local_movie_collection),
     path('tv/douban100/diff', tv_views.diff_douban_tv_show_100),
-    path('tv/local/season/missing', tv_views.find_lost_local_season),
-    path('tv/local/episode/missing', tv_views.find_lost_local_episode),
+    path('tv/local/season/missing', tv_views.find_lost_tv_local_season),
+    path('tv/local/episode/missing', tv_views.find_lost_tv_local_episode),
     path('anime/bangumi/diff', tv_views.diff_bangumi_tv_anime_100),
+    path('anime/local/season/missing', tv_views.find_lost_anime_local_season),
+    path('anime/local/episode/missing', tv_views.find_lost_anime_local_episode),
 ]

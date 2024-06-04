@@ -28,8 +28,18 @@ def is_retained_tv_show(tv_show: TvShow) -> bool:
     return tv_show.get_rate().score > 8.0 and tv_show.get_rate().votes > 50
 
 
-def find_lost_local_season(request):
-    local_tv_shows = crawl_local(tv_folder)
+def find_lost_tv_local_season(request):
+    missing = find_lost_local_season(tv_folder)
+    return JsonResponse(missing)
+
+
+def find_lost_anime_local_season(request):
+    missing = find_lost_local_season(anime_folder)
+    return JsonResponse(missing)
+
+
+def find_lost_local_season(folder) -> dict:
+    local_tv_shows = crawl_local(folder)
     missing = {}
     for local_tv_show in local_tv_shows:
         time.sleep(0.2)
@@ -44,8 +54,7 @@ def find_lost_local_season(request):
 
         if len(missing_seasons) > 0:
             missing[local_tv_show.get_titles()[0]] = missing_seasons
-
-    return JsonResponse(missing)
+    return missing
 
 
 def legal_season(season: TmdbSeason) -> bool:
@@ -59,8 +68,18 @@ def legal_season(season: TmdbSeason) -> bool:
     return delta.days > 90
 
 
-def find_lost_local_episode(request):
-    local_tv_shows = crawl_local(tv_folder)
+def find_lost_tv_local_episode(request):
+    missing = find_lost_local_episode(tv_folder)
+    return JsonResponse(missing)
+
+
+def find_lost_anime_local_episode(request):
+    missing = find_lost_local_episode(anime_folder)
+    return JsonResponse(missing)
+
+
+def find_lost_local_episode(folder) -> dict:
+    local_tv_shows = crawl_local(folder)
     missing = {}
 
     for local_tv_show in local_tv_shows:
@@ -88,8 +107,7 @@ def find_lost_local_episode(request):
 
         if len(missing_seasons) > 0:
             missing[local_tv_show.get_titles()[0]] = missing_seasons
-
-    return JsonResponse(missing)
+    return missing
 
 
 def legal_episode(episode: TmdbEpisode) -> bool:
@@ -109,12 +127,12 @@ def diff_bangumi_tv_anime_100(request):
     missing_tv_shows = get_missing_tv_shows(bangumi_80_tv_shows, local_animates)
     extra_tv_shows = get_missing_tv_shows(local_animates, bangumi_80_tv_shows)
 
-
     return JsonResponse({
         'missing_animates': [missing_show.to_dict() for missing_show in missing_tv_shows],
         'extra_animates': [extra_show.to_dict() for extra_show in extra_tv_shows
                            if not is_retained_anime(extra_show)],
     })
+
 
 def is_retained_anime(tv_show: TvShow) -> bool:
     return tv_show.get_rate().score > 8.5 and tv_show.get_rate().votes > 500
