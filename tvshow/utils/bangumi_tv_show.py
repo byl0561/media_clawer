@@ -106,6 +106,8 @@ def trim_title(title: str or None) -> str or None:
         '为美好的世界献上祝福！': '为美好的世界献上祝福！',
         '寄生兽': '寄生兽：生命的准则',
         '钢之炼金术师': '钢之炼金术师 FULLMETAL ALCHEMIST',
+        '少女☆歌剧': '少女☆歌剧 Revue Starlight',
+        'TIGER': 'TIGER & BUNNY',
     }
     for key, value in replace_titles.items():
         if key in title:
