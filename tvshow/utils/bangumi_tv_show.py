@@ -67,9 +67,7 @@ def check_max_size(tv_shows: list[BangumiTvShow]) -> bool:
 
 
 def check(anime: BangumiTvShow) -> bool:
-    current_year = datetime.now().year
-    years_diff = current_year - anime.get_years()[0]
-    if years_diff > 15:
+    if anime.get_years()[0] < 2009:
         return False
 
     timestamp = datetime.strptime(anime.get_date(), "%Y年%m月%d日")
