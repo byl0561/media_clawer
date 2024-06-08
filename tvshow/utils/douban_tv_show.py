@@ -16,6 +16,8 @@ def crawl_dou_list(url: str) -> list[DoubanTvShow]:
         bs = bs4.BeautifulSoup(res.text, 'html.parser')
         bs = bs.find('div', class_="article")
         for item in bs.find_all('div', class_="doulist-item"):
+            if item.find('div', class_="title") is None:
+                continue
             title = item.find('div', class_="title").get_text().strip().split(' ')[0]
             abstract = item.find('div', class_="abstract").get_text().strip().split('\n')
             year = int(abstract[8].replace('年份:', '').strip())
