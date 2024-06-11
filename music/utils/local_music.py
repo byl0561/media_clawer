@@ -7,7 +7,7 @@ from music.models.music import LocalAlbum
 def crawl_local(music_folder: str) -> list[LocalAlbum]:
     albums = []
 
-    pattern = r'^(\w+)\s-\s(\w+)\s(\d{4})$'
+    pattern = r'^(.+)\s-\s(.+)\s(\d{4})$'
     for root, dirs, files in os.walk(music_folder):
         for d in dirs:
             match = re.match(pattern, d)

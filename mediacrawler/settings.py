@@ -39,7 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     "movie.apps.MovieConfig",
     "tvshow.apps.TvshowConfig",
-    "music.apps.MusicConfig"
+    "music.apps.MusicConfig",
+    "book.apps.BookConfig"
 ]
 
 MIDDLEWARE = [
