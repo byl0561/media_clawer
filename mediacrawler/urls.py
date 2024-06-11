@@ -17,6 +17,7 @@ Including another URLconf
 from django.urls import path
 import movie.views as movie_views
 import tvshow.views as tv_views
+import music.views as music_views
 
 urlpatterns = [
     path('movie/douban250/diff', movie_views.diff_douban_250),
@@ -27,4 +28,5 @@ urlpatterns = [
     path('anime/bangumi/diff', tv_views.diff_bangumi_tv_anime_100),
     path('anime/local/season/missing', tv_views.find_lost_anime_local_season),
     path('anime/local/episode/missing', tv_views.find_lost_anime_local_episode),
+    path('album/douban250/diff', music_views.diff_douban_250)
 ]

@@ -9,10 +9,10 @@ from movie.utils.common import *
 
 
 def diff_douban_250(request):
-    douban_250_movie = crawl_douban_250()
-    local_movie = crawl_local(movie_folder)
-    missing_movies = get_missing_movies(douban_250_movie, local_movie)
-    extra_movies = get_extra_movies(douban_250_movie, local_movie)
+    douban_250_movies = crawl_douban_250()
+    local_movies = crawl_local(movie_folder)
+    missing_movies = get_missing_movies(douban_250_movies, local_movies)
+    extra_movies = get_extra_movies(douban_250_movies, local_movies)
     retained_extra_movie_set_names = set([extra_movie.get_collection_name() for extra_movie in extra_movies
                                           if is_retained(extra_movie)])
 
@@ -30,10 +30,10 @@ def is_retained(movie: Movie) -> bool:
 
 
 def complete_local_movie_collection(request):
-    local_movie = crawl_local(movie_folder)
+    local_movies = crawl_local(movie_folder)
 
     existing_movie_sets = {}
-    for movie in local_movie:
+    for movie in local_movies:
         tmdb_set_id = movie.tmdb_set.id
         if tmdb_set_id is None:
             continue
