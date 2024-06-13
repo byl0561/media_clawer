@@ -14,8 +14,10 @@ def crawl_local(book_folder: str) -> list[LocalBook]:
             if not match:
                 continue
 
-            title = match.group(1)
+            titles = match.group(1)
             author = match.group(2)
-            author = re.sub(r'\[[^]]*]', '', author)
-            books.append(LocalBook(title, author))
+            author = re.sub(r'\[[^]]*]', '', author).strip()
+            author = re.sub(r'\([^]]*\)', '', author)
+            author = re.sub(r'（[^]]*）', '', author)
+            books.append(LocalBook(titles, author))
     return books

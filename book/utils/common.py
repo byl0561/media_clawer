@@ -1,4 +1,5 @@
 import difflib
+import re
 
 from book.models.book import *
 
@@ -15,6 +16,10 @@ def book_similarity(book1: Book, book2: Book) -> bool:
 
     for book1_name in book1_names:
         for book2_name in book2_names:
+            book1_name = re.sub(r'\([^]]*\)', '', book1_name)
+            book1_name = re.sub(r'（[^]]*）', '', book1_name)
+            book2_name = re.sub(r'\([^]]*\)', '', book2_name)
+            book2_name = re.sub(r'（[^]]*）', '', book2_name)
             if difflib.SequenceMatcher(None, book1_name, book2_name).ratio() > 0.8:
                 return True
 

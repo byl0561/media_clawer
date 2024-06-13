@@ -54,15 +54,16 @@ class DoubanBook(Book):
     def get_rate(self) -> Rate or None:
         return self.douban_rate
 
+
 class LocalBook(Book):
     def __init__(self,
                  title: str,
                  author: str):
-        self.title = title
+        self.titles = title.split('_')
         self.author = author
 
     def get_titles(self) -> list[str]:
-        return [self.title]
+        return self.titles
 
     def get_author(self) -> str or None:
         return self.author
