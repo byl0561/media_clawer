@@ -17,5 +17,10 @@ def crawl_local(music_folder: str) -> list[LocalAlbum]:
             title = match.group(1)
             artist = match.group(2)
             year = int(match.group(3))
-            albums.append(LocalAlbum(title, artist, year))
+
+            alias = []
+            if os.path.exists(os.path.join(root, d, 'alias.txt')):
+                with open(os.path.join(root, d, 'alias.txt'), 'r') as f:
+                    alias = f.readlines()
+            albums.append(LocalAlbum(title, alias, artist, year))
     return albums

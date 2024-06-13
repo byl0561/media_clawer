@@ -63,14 +63,18 @@ class DoubanAlbum(Album):
 class LocalAlbum(Album):
     def __init__(self,
                  title: str,
+                 alias: list[str],
                  artist: str,
                  year: int):
         self.title = title
+        self.alias = alias
         self.artist = artist
         self.year = year
 
     def get_titles(self) -> list[str]:
-        return [self.title]
+        titles = [self.title]
+        titles.extend(self.alias)
+        return titles
 
     def get_artist(self) -> str or None:
         return self.artist

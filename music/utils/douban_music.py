@@ -16,7 +16,7 @@ def crawl_douban_250() -> list[DoubanAlbum]:
         bs = bs4.BeautifulSoup(res.text, 'html.parser')
         bs = bs.find('div', class_="indent")
         for item in bs.find_all('table'):
-            title = item.find('div', class_="pl2").find('a').get_text().strip()
+            title = item.find('div', class_="pl2").find('a').contents[0].strip()
             alias = item.find('div', class_="pl2").find('a').find('span').get_text().strip() if (
                     item.find('div', class_="pl2").find('a').find('span') is not None) else None
             artist = item.find('div', class_="pl2").find('p', class_="pl").get_text().strip().split(' / ')[0]
