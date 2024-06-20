@@ -2,6 +2,7 @@ import requests
 import bs4
 import re
 
+import utils
 from constant import user_agent
 from movie.models.movie import DoubanMovie, Rate
 
@@ -11,10 +12,13 @@ def crawl_douban_250() -> list[DoubanMovie]:
 
     for x in range(10):
         url = 'https://movie.douban.com/top250?start=' + str(x * 25) + '&filter='
-        res = requests.get(url, headers={
+        res = utils.http_get_with_cache(url, headers={
             'User-Agent': user_agent,
-        })
-        bs = bs4.BeautifulSoup(res.text, 'html.parser')
+        }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
+        if res is None:
+            continue
+
+        bs = bs4.BeautifulSoup(res, 'html.parser')
         bs = bs.find('ol', class_="grid_view")
         for item in bs.find_all('li'):
             title = []

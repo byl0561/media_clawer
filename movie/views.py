@@ -43,7 +43,6 @@ def complete_local_movie_collection(request):
 
     resp_dict = {}
     for tmdb_set_id, tmdb_ids in existing_movie_sets.items():
-        time.sleep(0.2)
         tmdb_movies_in_set = get_tmdb_movies_in_set(tmdb_set_id)
         missing_movies = []
         for tmdb_movie in tmdb_movies_in_set:

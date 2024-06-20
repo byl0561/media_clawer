@@ -1,6 +1,7 @@
 import requests
 import bs4
 
+import utils
 from constant import user_agent
 from music.models.music import DoubanAlbum, Rate
 
@@ -10,10 +11,13 @@ def crawl_douban_250() -> list[DoubanAlbum]:
 
     for x in range(10):
         url = 'https://music.douban.com/top250?start=' + str(x * 25)
-        res = requests.get(url, headers={
+        res = utils.http_get_with_cache(url, headers={
             'User-Agent': user_agent,
-        })
-        bs = bs4.BeautifulSoup(res.text, 'html.parser')
+        }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
+        if res is None:
+            continue
+
+        bs = bs4.BeautifulSoup(res, 'html.parser')
         bs = bs.find('div', class_="indent")
         for item in bs.find_all('table'):
             title = item.find('div', class_="pl2").find('a').contents[0].strip()

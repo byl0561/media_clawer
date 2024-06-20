@@ -1,5 +1,7 @@
 import re
 from datetime import datetime
+
+import utils
 from constant import user_agent
 from tvshow.models.tvshow import BangumiTvShow, Rate
 import requests
@@ -16,11 +18,13 @@ def crawl_bangumi_tv_show_80() -> list[BangumiTvShow]:
             break
         page += 1
         url = 'https://bangumi.tv/anime/browser/tv/?sort=rank&page=' + str(page)
-        res = requests.get(url, headers={
+        res = utils.http_get_with_cache(url, headers={
             'User-Agent': user_agent,
-        })
-        res.encoding = res.apparent_encoding
-        bs = bs4.BeautifulSoup(res.text, 'html.parser')
+        }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
+        if res is None:
+            continue
+
+        bs = bs4.BeautifulSoup(res, 'html.parser')
         bs = bs.find('ul', class_="browserFull")
         for item in bs.find_all('li', class_="item"):
             if check_max_size(tv_shows):

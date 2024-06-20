@@ -42,7 +42,6 @@ def find_lost_local_season(folder) -> dict:
     local_tv_shows = crawl_local(folder)
     missing = {}
     for local_tv_show in local_tv_shows:
-        time.sleep(0.2)
         tmdb_tv_show = get_tmdb_tv_show(local_tv_show.tmdb_id)
         if tmdb_tv_show is None:
             continue
@@ -87,9 +86,8 @@ def find_lost_local_episode(folder) -> dict:
 
         missing_seasons = []
         for season_num, max_episode in season_2_max_episode.items():
-            time.sleep(0.2)
             tmdb_tv_show_season = get_tmdb_tv_show_season(local_tv_show.tmdb_id, season_num)
-            if tmdb_tv_show_season.get_max_episode_num() <= max_episode:
+            if tmdb_tv_show_season is None or tmdb_tv_show_season.get_max_episode_num() <= max_episode:
                 continue
 
             missing_max_episode = -1
