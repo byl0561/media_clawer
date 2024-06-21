@@ -11,7 +11,7 @@ def book_similarity(book1: Book, book2: Book) -> bool:
     book2_names = book2.get_titles()
     book2_author = book2.get_author()
 
-    if difflib.SequenceMatcher(None, book1_author, book2_author).ratio() <= 0.8:
+    if difflib.SequenceMatcher(None, book1_author, book2_author).ratio() <= 0.4:
         return False
 
     for book1_name in book1_names:

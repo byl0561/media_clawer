@@ -1,8 +1,8 @@
-import utils
+import bs4
+import utils.request_utils as request_utils
+
 from constant import user_agent, douban_cookie
 from tvshow.models.tvshow import DoubanTvShow, Rate
-import requests
-import bs4
 
 
 def crawl_dou_list(url: str) -> list[DoubanTvShow]:
@@ -11,7 +11,7 @@ def crawl_dou_list(url: str) -> list[DoubanTvShow]:
     for x in range(get_dou_list_total_page(url)):
         page_url = url + '?start=' + str(x * 25) + '&sort=seq&playable=0&sub_type='
         cookies = {cookie.split('=')[0]: cookie.split('=')[1] for cookie in douban_cookie.split('; ')}
-        res = utils.http_get_with_cache(page_url, cookies=cookies, headers={
+        res = request_utils.http_get_with_cache(page_url, cookies=cookies, headers={
             'User-Agent': user_agent,
         }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
         if res is None:
@@ -38,7 +38,7 @@ def crawl_dou_list(url: str) -> list[DoubanTvShow]:
 
 
 def get_dou_list_total_page(url: str) -> int:
-    res = utils.http_get_with_cache(url, headers={
+    res = request_utils.http_get_with_cache(url, headers={
         'User-Agent': user_agent,
     }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
     if res is None:

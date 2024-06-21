@@ -1,9 +1,7 @@
 import re
-
-import requests
 import bs4
+import utils.request_utils as request_utils
 
-import utils
 from constant import user_agent
 from book.models.book import DoubanBook, Rate
 
@@ -13,7 +11,7 @@ def crawl_douban_250() -> list[DoubanBook]:
 
     for x in range(10):
         url = 'https://book.douban.com/top250?start=' + str(x * 25)
-        res = utils.http_get_with_cache(url, headers={
+        res = request_utils.http_get_with_cache(url, headers={
             'User-Agent': user_agent,
         }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
         if res is None:

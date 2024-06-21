@@ -1,8 +1,7 @@
-import requests
 import bs4
 import re
+import utils.request_utils as request_utils
 
-import utils
 from constant import user_agent
 from movie.models.movie import DoubanMovie, Rate
 
@@ -12,7 +11,7 @@ def crawl_douban_250() -> list[DoubanMovie]:
 
     for x in range(10):
         url = 'https://movie.douban.com/top250?start=' + str(x * 25) + '&filter='
-        res = utils.http_get_with_cache(url, headers={
+        res = request_utils.http_get_with_cache(url, headers={
             'User-Agent': user_agent,
         }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
         if res is None:

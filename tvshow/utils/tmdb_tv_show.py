@@ -1,16 +1,14 @@
 import json
+import utils.request_utils as request_utils
 
-import requests
 from datetime import datetime
-
-import utils
 from constant import *
 from tvshow.models.tvshow import TmdbTvShow, TmdbSeason, Rate, TmdbEpisode
 
 
 def get_tmdb_tv_show(tv_show_id: int) -> TmdbTvShow or None:
     url = f'https://api.themoviedb.org/3/tv/{tv_show_id}?api_key={tmdb_api_key}&language=zh-CN'
-    res = utils.http_get_with_cache(url, cache_ttl_m=60 * 24 * 7, sleep_s=0.2)
+    res = request_utils.http_get_with_cache(url, cache_ttl_m=60 * 24 * 7, sleep_s=0.2)
     if res is None:
         return None
 
@@ -40,7 +38,7 @@ def get_tmdb_tv_show(tv_show_id: int) -> TmdbTvShow or None:
 
 def get_tmdb_tv_show_season(tv_show_id: int, season_num: int) -> TmdbSeason or None:
     url = f'https://api.themoviedb.org/3/tv/{tv_show_id}/season/{season_num}?api_key={tmdb_api_key}&language=zh-CN'
-    res = utils.http_get_with_cache(url, cache_ttl_m=60 * 24 * 7, sleep_s=0.2)
+    res = request_utils.http_get_with_cache(url, cache_ttl_m=60 * 24 * 7, sleep_s=0.2)
     if res is None:
         return None
 

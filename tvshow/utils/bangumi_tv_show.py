@@ -1,11 +1,10 @@
 import re
-from datetime import datetime
+import bs4
+import utils.request_utils as request_utils
 
-import utils
+from datetime import datetime
 from constant import user_agent
 from tvshow.models.tvshow import BangumiTvShow, Rate
-import requests
-import bs4
 
 
 def crawl_bangumi_tv_show_80() -> list[BangumiTvShow]:
@@ -18,7 +17,7 @@ def crawl_bangumi_tv_show_80() -> list[BangumiTvShow]:
             break
         page += 1
         url = 'https://bangumi.tv/anime/browser/tv/?sort=rank&page=' + str(page)
-        res = utils.http_get_with_cache(url, headers={
+        res = request_utils.http_get_with_cache(url, headers={
             'User-Agent': user_agent,
         }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
         if res is None:
