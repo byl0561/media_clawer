@@ -11,7 +11,7 @@ def file_filter(file: str) -> bool:
 
 
 def process_file(path: str):
-    _, file = os.path.split(path)
+    root, file = os.path.split(path)
 
     pattern = r'^(.+)\s-\s(.+)\.(\w+)'
     match = re.match(pattern, file)
@@ -23,7 +23,13 @@ def process_file(path: str):
     author = re.sub(r'\[[^]]*]', '', author).strip()
     author = re.sub(r'\([^]]*\)', '', author)
     author = re.sub(r'（[^]]*）', '', author)
-    return LocalBook(title, author)
+
+    alias = []
+    if os.path.exists(os.path.join(root, 'alias.txt')):
+        with open(os.path.join(root, 'alias.txt'), 'r') as f:
+            alias = f.readlines()
+
+    return LocalBook(title, alias, author)
 
 
 def crawl_local(book_folder: str) -> list[LocalBook]:

@@ -58,12 +58,17 @@ class DoubanBook(Book):
 class LocalBook(Book):
     def __init__(self,
                  title: str,
+                 alias: list[str],
                  author: str):
         self.titles = title.split('_')
+        self.alias = alias
         self.author = author
 
     def get_titles(self) -> list[str]:
-        return self.titles
+        titles = []
+        titles.extend(self.titles)
+        titles.extend(self.alias)
+        return titles
 
     def get_author(self) -> str or None:
         return self.author
