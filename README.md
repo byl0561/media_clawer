@@ -48,7 +48,7 @@
 > 安装及配置 Docker 将不在此处说明，请自行解决
 
 - 环境变量：
-  - DEBUG：是否为debug模式 True/False
+  - DEBUG：是否为debug模式，默认为 False
   - REDIS_HOST: Redis IP
   - REDIS_PORT: Redis 端口号，默认 6379
   - REDIS_PASS: Redis 密码，默认为空

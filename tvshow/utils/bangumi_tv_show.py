@@ -7,7 +7,7 @@ from constant import user_agent
 from tvshow.models.tvshow import BangumiTvShow, Rate
 
 
-def crawl_bangumi_tv_show_80() -> list[BangumiTvShow]:
+def crawl_bangumi_tv_show_80(cache=True) -> list[BangumiTvShow]:
     tv_shows = []
     tv_show_names = set()
 
@@ -19,7 +19,7 @@ def crawl_bangumi_tv_show_80() -> list[BangumiTvShow]:
         url = 'https://bangumi.tv/anime/browser/tv/?sort=rank&page=' + str(page)
         res = request_utils.http_get_with_cache(url, headers={
             'User-Agent': user_agent,
-        }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
+        }, cache_ttl_m=60 * 24 * 7, sleep_s=0, need_cache=cache)
         if res is None:
             continue
 

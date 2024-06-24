@@ -6,14 +6,14 @@ from constant import user_agent
 from book.models.book import DoubanBook, Rate
 
 
-def crawl_douban_250() -> list[DoubanBook]:
+def crawl_douban_250(cache=True) -> list[DoubanBook]:
     albums = []
 
     for x in range(10):
         url = 'https://book.douban.com/top250?start=' + str(x * 25)
         res = request_utils.http_get_with_cache(url, headers={
             'User-Agent': user_agent,
-        }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
+        }, cache_ttl_m=60 * 24 * 7, sleep_s=0, need_cache=cache)
         if res is None:
             continue
 

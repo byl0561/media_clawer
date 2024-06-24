@@ -5,15 +5,15 @@ from constant import user_agent, douban_cookie
 from tvshow.models.tvshow import DoubanTvShow, Rate
 
 
-def crawl_dou_list(url: str) -> list[DoubanTvShow]:
+def crawl_dou_list(url: str, cache=True) -> list[DoubanTvShow]:
     tv_shows = []
 
-    for x in range(get_dou_list_total_page(url)):
+    for x in range(get_dou_list_total_page(url, cache=cache)):
         page_url = url + '?start=' + str(x * 25) + '&sort=seq&playable=0&sub_type='
         cookies = {cookie.split('=')[0]: cookie.split('=')[1] for cookie in douban_cookie.split('; ')}
         res = request_utils.http_get_with_cache(page_url, cookies=cookies, headers={
             'User-Agent': user_agent,
-        }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
+        }, cache_ttl_m=60 * 24 * 7, sleep_s=0, need_cache=cache)
         if res is None:
             continue
 
@@ -37,10 +37,10 @@ def crawl_dou_list(url: str) -> list[DoubanTvShow]:
     return tv_shows
 
 
-def get_dou_list_total_page(url: str) -> int:
+def get_dou_list_total_page(url: str, cache=True) -> int:
     res = request_utils.http_get_with_cache(url, headers={
         'User-Agent': user_agent,
-    }, cache_ttl_m=60 * 24 * 7, sleep_s=0)
+    }, cache_ttl_m=60 * 24 * 7, sleep_s=0, need_cache=cache)
     if res is None:
         return 0
 

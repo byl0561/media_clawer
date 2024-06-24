@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_crontab',
     "movie.apps.MovieConfig",
     "tvshow.apps.TvshowConfig",
     "music.apps.MusicConfig",
@@ -157,3 +158,10 @@ LOGGING = {
         },
     },
 }
+
+CRONJOBS = [
+    ('30 4 * * 1', 'book.utils.cron.cronjob'),
+    ('30 4 * * 2', 'movie.utils.cron.cronjob'),
+    ('30 4 * * 3', 'music.utils.cron.cronjob'),
+    ('30 4 * * 4', 'tvshow.utils.cron.cronjob'),
+]

@@ -9,8 +9,8 @@ __all__ = ['http_get_with_cache']
 logger = logging.getLogger()
 
 
-def http_get_with_cache(url: str, cookies=None, headers=None, cache_ttl_m=1, sleep_s=0.0) -> str or None:
-    if cache.has_key(url):
+def http_get_with_cache(url: str, cookies=None, headers=None, cache_ttl_m=1, sleep_s=0.0, need_cache=True) -> str or None:
+    if need_cache and cache.has_key(url):
         return cache.get(url)
 
     if sleep_s > 0:
