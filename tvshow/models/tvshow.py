@@ -1,4 +1,5 @@
 from datetime import datetime
+from constant import tmdb_image_path
 
 
 class Rate:
@@ -61,12 +62,16 @@ class TvShow:
     def list_seasons(self) -> list[Season] or None:
         return None
 
+    def get_poster(self) -> str or None:
+        return None
+
     def to_dict(self) -> dict:
         return {
             'title': self.get_titles()[0],
             'year': self.get_years(),
             'score': self.get_rate().score if self.get_rate() is not None else None,
-            'votes': self.get_rate().votes if self.get_rate() is not None else None
+            'votes': self.get_rate().votes if self.get_rate() is not None else None,
+            'poster': self.get_poster(),
         }
 
 
@@ -93,6 +98,9 @@ class DoubanTvShow(TvShow):
 
     def get_rate(self) -> Rate:
         return self.douban_rate
+
+    def get_poster(self) -> str:
+        return self.poster
 
 
 class BangumiTvShow(TvShow):
@@ -123,6 +131,9 @@ class BangumiTvShow(TvShow):
 
     def get_rate(self) -> Rate:
         return self.bangumi_rate
+
+    def get_poster(self) -> str:
+        return self.poster
 
 
 class LocalEpisode(Episode):
@@ -274,7 +285,7 @@ class TmdbTvShow(TvShow):
         self.original_title = original_title
         self.language = language
         self.years = years
-        self.poster = poster
+        self.poster = tmdb_image_path + poster
         self.rate = rate
         self.id = id
         self.seasons = {season.num: season for season in seasons}
@@ -294,3 +305,6 @@ class TmdbTvShow(TvShow):
 
     def list_seasons(self) -> list[TmdbSeason]:
         return list(self.seasons.values())
+
+    def get_poster(self) -> str:
+        return self.poster

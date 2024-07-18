@@ -1,4 +1,5 @@
 from datetime import datetime
+from constant import tmdb_image_path
 
 
 class Rate:
@@ -28,12 +29,16 @@ class Movie:
     def get_rate(self) -> Rate or None:
         return None
 
+    def get_poster(self) -> str or None:
+        return None
+
     def to_dict(self) -> dict:
         return {
             'title': self.get_titles()[0],
             'year': self.get_year(),
             'score': self.get_rate().score if self.get_rate() is not None else None,
-            'votes': self.get_rate().votes if self.get_rate() is not None else None
+            'votes': self.get_rate().votes if self.get_rate() is not None else None,
+            'poster': self.get_poster(),
         }
 
 
@@ -65,6 +70,9 @@ class DoubanMovie(Movie):
 
     def get_rate(self) -> Rate:
         return self.douban_rate
+
+    def get_poster(self) -> str:
+        return self.poster
 
 
 class LocalMovie(Movie):
@@ -113,7 +121,7 @@ class TmdbMovie(Movie):
         self.original_title = original_title
         self.date = date
         self.language = language
-        self.poster = poster
+        self.poster = tmdb_image_path + poster
         self.rate = rate
         self.id = id
         self.move_set = move_set
@@ -132,3 +140,6 @@ class TmdbMovie(Movie):
 
     def get_rate(self) -> Rate:
         return self.rate
+
+    def get_poster(self) -> str:
+        return self.poster

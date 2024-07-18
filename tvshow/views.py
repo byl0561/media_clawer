@@ -52,7 +52,10 @@ def find_lost_local_season(folder) -> dict:
                 missing_seasons.append(tmdb_season.to_dict())
 
         if len(missing_seasons) > 0:
-            missing[local_tv_show.get_titles()[0]] = missing_seasons
+            missing[local_tv_show.get_titles()[0]] = {
+                'tv_show': tmdb_tv_show.to_dict(),
+                'missing_seasons': missing_seasons,
+            }
     return missing
 
 
@@ -104,7 +107,11 @@ def find_lost_local_episode(folder) -> dict:
                 })
 
         if len(missing_seasons) > 0:
-            missing[local_tv_show.get_titles()[0]] = missing_seasons
+            tmdb_tv_show = get_tmdb_tv_show(local_tv_show.tmdb_id)
+            missing[local_tv_show.get_titles()[0]] = {
+                'tv_show': tmdb_tv_show.to_dict(),
+                'missing_seasons': missing_seasons,
+            }
     return missing
 
 
