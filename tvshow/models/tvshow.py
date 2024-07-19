@@ -113,7 +113,7 @@ class BangumiTvShow(TvShow):
         self.title = title
         self.origin_title = origin_title
         self.date = date
-        self.poster = poster
+        self.poster = 'https:' + poster
         self.bangumi_rate = bangumi_rate
 
     def get_titles(self) -> list[str]:
