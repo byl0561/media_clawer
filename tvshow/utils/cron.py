@@ -17,8 +17,8 @@ def cronjob():
 def flush_tmdb(folder):
     local_tv_shows = crawl_local(folder)
     for local_tv_show in local_tv_shows:
-        get_tmdb_tv_show(local_tv_show.tmdb_id)
+        get_tmdb_tv_show(local_tv_show.tmdb_id, cache=False)
 
         all_seasons = local_tv_show.map_season_max_episode().keys()
         for season_num in all_seasons:
-            get_tmdb_tv_show_season(local_tv_show.tmdb_id, season_num)
+            get_tmdb_tv_show_season(local_tv_show.tmdb_id, season_num, cache=False)
