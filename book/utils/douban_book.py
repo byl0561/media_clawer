@@ -7,7 +7,7 @@ from book.models.book import DoubanBook, Rate
 
 
 def crawl_douban_250(cache=True) -> list[DoubanBook]:
-    albums = []
+    books = []
 
     for x in range(10):
         url = 'https://book.douban.com/top250?start=' + str(x * 25)
@@ -42,6 +42,18 @@ def crawl_douban_250(cache=True) -> list[DoubanBook]:
                                                                                                       '').replace('(',
                                                                                                                   '').replace(
                     ')', '').strip())
-            albums.append(DoubanBook(title, alias, author, year, poster, link, Rate(score, votes, '豆瓣图书')))
 
-    return albums
+            book = DoubanBook(title, alias, author, year, poster, link, Rate(score, votes, '豆瓣图书'))
+            if not check(book):
+                continue
+            books.append(book)
+
+    return books
+
+
+def check(book: DoubanBook) -> bool:
+    young_books = ['中国少年儿童百科全书', '十万个为什么']
+    for title in book.get_titles():
+        if title in young_books:
+            return False
+    return True
