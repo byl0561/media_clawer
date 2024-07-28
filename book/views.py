@@ -16,7 +16,8 @@ def diff_douban_250(request):
 
     return JsonResponse({
         'missing_books': [missing_book.to_dict() for missing_book in missing_books],
-        'extra_books': [extra_book.to_dict() for extra_book in extra_books],
+        'extra_books': [extra_book.to_dict() for extra_book in extra_books
+                        if not is_retained_book(extra_book)],
     })
 
 
@@ -33,3 +34,7 @@ def get_cover(request, image_path):
     if mime_type is None:
         mime_type = 'application/octet-stream'
     return HttpResponse(data, content_type=mime_type)
+
+
+def is_retained_book(book: Book) -> bool:
+    return True
