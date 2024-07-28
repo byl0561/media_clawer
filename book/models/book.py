@@ -66,10 +66,12 @@ class LocalBook(Book):
     def __init__(self,
                  title: str,
                  alias: list[str],
-                 author: str):
+                 author: str,
+                 poster: str, ):
         self.titles = title.split('_')
         self.alias = alias
         self.author = author
+        self.poster = poster
 
     def get_titles(self) -> list[str]:
         titles = []
@@ -77,5 +79,8 @@ class LocalBook(Book):
         titles.extend(self.alias)
         return titles
 
-    def get_author(self) -> str or None:
+    def get_author(self) -> str:
         return self.author
+
+    def get_poster(self) -> str:
+        return self.poster

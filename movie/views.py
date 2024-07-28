@@ -1,11 +1,12 @@
-import time
+import mimetypes
 
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404, HttpResponse
 
 from movie.utils.local_movie import *
 from movie.utils.douban_movie import *
 from movie.utils.tmdb_movie import *
 from movie.utils.common import *
+from utils.file_utils import read_image_file
 
 
 def diff_douban_250(request):
@@ -63,3 +64,18 @@ def legal_movie(movie: TmdbMovie) -> bool:
     today = datetime.today()
     delta = today - timestamp
     return delta.days > 90
+
+
+def get_poster(request, image_path):
+    full_path = os.path.join(movie_folder, image_path)
+    if not os.path.splitext(full_path)[0].endswith('poster'):
+        raise Http404()
+
+    data = read_image_file(full_path)
+    if data is None:
+        raise Http404()
+
+    mime_type, _ = mimetypes.guess_type(full_path)
+    if mime_type is None:
+        mime_type = 'application/octet-stream'
+    return HttpResponse(data, content_type=mime_type)

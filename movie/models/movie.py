@@ -106,6 +106,9 @@ class LocalMovie(Movie):
     def get_rate(self) -> Rate:
         return self.tmdb_rate
 
+    def get_poster(self) -> str:
+        return self.poster
+
 
 class TmdbMovie(Movie):
     def __init__(self,

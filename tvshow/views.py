@@ -1,11 +1,13 @@
-from django.http import JsonResponse
-import time
+import mimetypes
+
+from django.http import JsonResponse, Http404, HttpResponse
 
 from tvshow.utils.douban_tv_show import *
 from tvshow.utils.bangumi_tv_show import *
 from tvshow.utils.local_tv_show import *
 from tvshow.utils.tmdb_tv_show import *
 from tvshow.utils.common import *
+from utils.file_utils import read_image_file
 
 
 def diff_douban_tv_show_100(request):
@@ -141,3 +143,27 @@ def diff_bangumi_tv_anime_100(request):
 
 def is_retained_anime(tv_show: TvShow) -> bool:
     return tv_show.get_rate().score > 8.5 and tv_show.get_rate().votes > 500
+
+
+def get_tv_poster(request, image_path):
+    full_path = os.path.join(tv_folder, image_path)
+    return get_poster(full_path)
+
+
+def get_anime_poster(request, image_path):
+    full_path = os.path.join(anime_folder, image_path)
+    return get_poster(full_path)
+
+
+def get_poster(full_path):
+    if not os.path.splitext(full_path)[0].endswith('poster'):
+        raise Http404()
+
+    data = read_image_file(full_path)
+    if data is None:
+        raise Http404()
+
+    mime_type, _ = mimetypes.guess_type(full_path)
+    if mime_type is None:
+        mime_type = 'application/octet-stream'
+    return HttpResponse(data, content_type=mime_type)

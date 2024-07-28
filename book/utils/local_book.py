@@ -1,7 +1,9 @@
 import os
 import re
+import glob
 
 from book.models.book import LocalBook
+from constant import book_folder
 from utils import file_utils
 
 
@@ -29,7 +31,13 @@ def process_file(path: str):
         with open(os.path.join(root, 'alias.txt'), 'r') as f:
             alias = f.readlines()
 
-    return LocalBook(title, alias, author)
+    poster = None
+    pattern = os.path.join(root, 'cover.*')
+    cover_files = glob.glob(pattern)
+    if len(cover_files) > 0:
+        poster = cover_files[0].replace(book_folder, '')
+        poster = f'/book/cover/{poster}'
+    return LocalBook(title, alias, author, poster)
 
 
 def crawl_local(book_folder: str) -> list[LocalBook]:

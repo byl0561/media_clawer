@@ -229,6 +229,9 @@ class LocalTvShow(TvShow):
             season_max_episode[season.num] = max(season.get_max_episode_num(), season_max_episode.get(season.num, 0))
         return season_max_episode
 
+    def get_poster(self) -> str:
+        return self.poster
+
 
 class TmdbEpisode(Episode):
     def __init__(self, num: int, name: str, date: str, run_minus: int):

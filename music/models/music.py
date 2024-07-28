@@ -73,11 +73,13 @@ class LocalAlbum(Album):
                  title: str,
                  alias: list[str],
                  artist: str,
-                 year: int):
+                 year: int,
+                 poster: str,):
         self.title = title
         self.alias = alias
         self.artist = artist
         self.year = year
+        self.poster = poster
 
     def get_titles(self) -> list[str]:
         titles = [self.title]
@@ -89,3 +91,6 @@ class LocalAlbum(Album):
 
     def get_year(self) -> int:
         return self.year
+
+    def get_poster(self) -> str:
+        return self.poster

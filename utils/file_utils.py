@@ -4,7 +4,7 @@ import os
 from typing import Any, Callable
 from functools import partial
 
-__all__ = ['mapping_file_to_object', 'mapping_dir_to_object']
+__all__ = ['mapping_file_to_object', 'mapping_dir_to_object', 'read_image_file']
 
 
 worker_num = 12
@@ -61,3 +61,18 @@ def mapping_dir_to_object(root: str,
 
         objs = [obj for obj in obj_lists]
         return list(filter(lambda x: x is not None, objs))
+
+
+def read_image_file(path: str) -> str or None:
+    allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']
+    ext = os.path.splitext(path)[1].lower()
+    if ext not in allowed_extensions:
+        return None
+    return read_file_data(path)
+
+
+def read_file_data(file_name: str) -> str or None:
+    if not os.path.isfile(file_name):
+        return None
+    with open(file_name, 'rb') as f:
+        return f.read()

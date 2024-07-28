@@ -1,6 +1,8 @@
+import glob
 import os
 import re
 
+from constant import music_folder
 from music.models.music import LocalAlbum
 from utils import file_utils
 
@@ -26,7 +28,14 @@ def process_dir(path: str):
     if os.path.exists(os.path.join(root, d, 'alias.txt')):
         with open(os.path.join(root, d, 'alias.txt'), 'r') as f:
             alias = f.readlines()
-    return LocalAlbum(title, alias, artist, year)
+
+    poster = None
+    pattern = os.path.join(path, 'cover.*')
+    cover_files = glob.glob(pattern)
+    if len(cover_files) > 0:
+        poster = cover_files[0].replace(music_folder, '')
+        poster = f'/album/cover/{poster}'
+    return LocalAlbum(title, alias, artist, year, poster)
 
 
 def crawl_local(music_folder: str) -> list[LocalAlbum]:

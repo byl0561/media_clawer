@@ -1,7 +1,9 @@
+import glob
 import os
 import re
 import xml.etree.ElementTree as ET
 
+from constant import movie_folder
 from movie.models.movie import LocalMovie, Rate, MovieSet
 from utils import file_utils
 
@@ -23,7 +25,6 @@ def process_file(path: str):
     original_title = root_element.find('originaltitle').text
     year = int(re.search(r'\((\d{4})\)', root.split('/')[-1]).group(1))
     country_list = [country.text for country in root_element.findall('country')]
-    poster = root_element.find('thumb').text
     tmdb_score = float(root_element.find("./ratings/rating[@name='themoviedb']/value").text)
     tmdb_votes = int(root_element.find("./ratings/rating[@name='themoviedb']/votes").text)
     tmdb_id = int(root_element.find("./uniqueid[@type='tmdb']").text)
@@ -32,6 +33,13 @@ def process_file(path: str):
     tmdb_set_name = root_element.find('./set/name').text if root_element.find(
         './set/name') is not None else (
         root_element.find('set').text if root_element.find('set') is not None else None)
+
+    poster = None
+    pattern = os.path.join(root, 'poster.*')
+    cover_files = glob.glob(pattern)
+    if len(cover_files) > 0:
+        poster = cover_files[0].replace(movie_folder, '')
+        poster = f'/movie/poster/{poster}'
     return LocalMovie(title, original_title, year, country_list, poster,
                       Rate(tmdb_score, tmdb_votes, 'TMDB'), tmdb_id,
                       MovieSet(tmdb_set_id, tmdb_set_name, 'TMDB'))

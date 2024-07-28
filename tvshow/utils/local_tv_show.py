@@ -1,6 +1,8 @@
+import glob
 import os
 import xml.etree.ElementTree as ET
 
+from constant import tv_folder, anime_folder
 from tvshow.models.tvshow import *
 from utils import file_utils
 
@@ -21,12 +23,23 @@ def process_file(path: str):
     title = root_element.find('title').text
     original_title = root_element.find('originaltitle').text
     year = int(root_element.find('year').text)
-    poster = root_element.find('thumb').text
     tmdb_score = float(root_element.find('rating').text) if root_element.find('rating') is not None else float(
         root_element.find("./ratings/rating[@name='themoviedb']/value").text)
     tmdb_votes = int(root_element.find('votes').text) if root_element.find('votes') is not None else int(
         root_element.find("./ratings/rating[@name='themoviedb']/votes").text)
     tmdb_id = int(root_element.find("./uniqueid[@type='tmdb']").text)
+
+    poster = None
+    pattern = os.path.join(root, 'poster.*')
+    cover_files = glob.glob(pattern)
+    if len(cover_files) > 0:
+        poster = cover_files[0]
+        if poster.startswith(tv_folder):
+            poster = poster.replace(tv_folder, '')
+            poster = f'/tv/poster/{poster}'
+        elif poster.startswith(anime_folder):
+            poster = poster.replace(anime_folder, '')
+            poster = f'/anime/poster/{poster}'
 
     alias = []
     if os.path.exists(os.path.join(root, 'alias.txt')):

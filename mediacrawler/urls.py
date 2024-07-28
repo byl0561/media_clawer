@@ -23,12 +23,17 @@ import book.views as book_views
 urlpatterns = [
     path('movie/douban250/diff', movie_views.diff_douban_250),
     path('movie/local/collection/complete', movie_views.complete_local_movie_collection),
+    path('movie/poster/<path:image_path>', movie_views.get_poster),
     path('tv/douban100/diff', tv_views.diff_douban_tv_show_100),
     path('tv/local/season/missing', tv_views.find_lost_tv_local_season),
     path('tv/local/episode/missing', tv_views.find_lost_tv_local_episode),
+    path('tv/poster/<path:image_path>', tv_views.get_tv_poster),
     path('anime/bangumi/diff', tv_views.diff_bangumi_tv_anime_100),
     path('anime/local/season/missing', tv_views.find_lost_anime_local_season),
     path('anime/local/episode/missing', tv_views.find_lost_anime_local_episode),
+    path('anime/poster/<path:image_path>', tv_views.get_anime_poster),
     path('album/douban250/diff', music_views.diff_douban_250),
+    path('album/cover/<path:image_path>', music_views.get_cover),
     path('book/douban250/diff', book_views.diff_douban_250),
+    path('book/cover/<path:image_path>', book_views.get_cover),
 ]
