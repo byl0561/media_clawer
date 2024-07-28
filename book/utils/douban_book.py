@@ -21,6 +21,7 @@ def crawl_douban_250(cache=True) -> list[DoubanBook]:
         bs = bs.find('div', class_="indent")
         for item in bs.find_all('table'):
             title = item.find('div', class_="pl2").find('a').contents[0].strip()
+            link = item.find('div', class_="pl2").find('a').attrs['href']
             alias = item.find('div', class_="pl2").find('a').find('span').get_text().replace(':', '').strip() if (
                     item.find('div', class_="pl2").find('a').find('span') is not None) else None
             author = item.find('p', class_="pl").get_text().strip().split(' / ')[0]
@@ -41,6 +42,6 @@ def crawl_douban_250(cache=True) -> list[DoubanBook]:
                                                                                                       '').replace('(',
                                                                                                                   '').replace(
                     ')', '').strip())
-            albums.append(DoubanBook(title, alias, author, year, poster, Rate(score, votes, '豆瓣图书')))
+            albums.append(DoubanBook(title, alias, author, year, poster, link, Rate(score, votes, '豆瓣图书')))
 
     return albums

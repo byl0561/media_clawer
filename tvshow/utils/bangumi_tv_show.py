@@ -38,6 +38,7 @@ def crawl_bangumi_tv_show_80(cache=True) -> list[BangumiTvShow]:
 
             title = item.find('a', class_="l").get_text().strip().split(' ')[title_index]
             title = trim_title(title)
+            id = int(item.find('a', class_="l").get('href').split('/')[-1])
             origin_title = item.find('small', class_="grey").get_text().strip().split(' ')[title_index] if item.find('small', class_="grey") is not None else None
             match = re.search(r'\d{4}年\d{1,2}月\d{1,2}日', item.find('p', class_="info tip").get_text().strip())
             if match is None:
@@ -48,7 +49,7 @@ def crawl_bangumi_tv_show_80(cache=True) -> list[BangumiTvShow]:
             votes = int(item.find('p', class_="rateInfo").find('span', class_='tip_j').get_text().replace('人评分)',
                                                                                                           '').replace(
                 '(', '').strip())
-            anime = BangumiTvShow(title, origin_title, date, poster, Rate(score, votes, 'Bangumi'))
+            anime = BangumiTvShow(id, title, origin_title, date, poster, Rate(score, votes, 'Bangumi'))
 
             titles = anime.get_titles()
             duplicated = False

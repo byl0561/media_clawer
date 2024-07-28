@@ -35,7 +35,7 @@ def complete_local_movie_collection(request):
 
     existing_movie_sets = {}
     for movie in local_movies:
-        tmdb_set_id = movie.tmdb_set.id
+        tmdb_set_id = movie.tmdb_set.set_id
         if tmdb_set_id is None:
             continue
         if tmdb_set_id not in existing_movie_sets:
@@ -47,7 +47,7 @@ def complete_local_movie_collection(request):
         tmdb_movies_in_set = get_tmdb_movies_in_set(tmdb_set_id)
         missing_movies = []
         for tmdb_movie in tmdb_movies_in_set:
-            if tmdb_movie.id not in tmdb_ids and legal_movie(tmdb_movie):
+            if tmdb_movie.tmdb_id not in tmdb_ids and legal_movie(tmdb_movie):
                 missing_movies.append(tmdb_movie)
         if len(missing_movies) > 0:
             resp_dict[missing_movies[0].move_set.name] = [missing_movie.to_dict() for missing_movie in missing_movies]

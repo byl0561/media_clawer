@@ -1,5 +1,5 @@
 from datetime import datetime
-from constant import tmdb_image_path
+from constant import tmdb_image_path, bangumi_anime_path, tmdb_tv_path
 
 
 class Rate:
@@ -65,6 +65,9 @@ class TvShow:
     def get_poster(self) -> str or None:
         return None
 
+    def get_link(self) -> str or None:
+        return None
+
     def to_dict(self) -> dict:
         return {
             'title': self.get_titles()[0],
@@ -72,6 +75,7 @@ class TvShow:
             'score': self.get_rate().score if self.get_rate() is not None else None,
             'votes': self.get_rate().votes if self.get_rate() is not None else None,
             'poster': self.get_poster(),
+            'link': self.get_link(),
         }
 
 
@@ -82,12 +86,14 @@ class DoubanTvShow(TvShow):
                  country: str,
                  style: list[str],
                  poster: str,
+                 link: str,
                  douban_rate: Rate):
         self.title = title
         self.year = year
         self.country = country
         self.style = style
         self.poster = poster
+        self.link = link
         self.douban_rate = douban_rate
 
     def get_titles(self) -> list[str]:
@@ -102,14 +108,19 @@ class DoubanTvShow(TvShow):
     def get_poster(self) -> str:
         return self.poster
 
+    def get_link(self) -> str:
+        return self.link
+
 
 class BangumiTvShow(TvShow):
     def __init__(self,
+                 bangumi_id: int,
                  title: str,
                  origin_title: str or None,
                  date: str,
                  poster: str,
                  bangumi_rate: Rate):
+        self.bangumi_id = bangumi_id
         self.title = title
         self.origin_title = origin_title
         self.date = date
@@ -134,6 +145,9 @@ class BangumiTvShow(TvShow):
 
     def get_poster(self) -> str:
         return self.poster
+
+    def get_link(self) -> str:
+        return f'{bangumi_anime_path}/{self.bangumi_id}'
 
 
 class LocalEpisode(Episode):
@@ -232,6 +246,9 @@ class LocalTvShow(TvShow):
     def get_poster(self) -> str:
         return self.poster
 
+    def get_link(self) -> str:
+        return f'{tmdb_tv_path}/{self.tmdb_id}'
+
 
 class TmdbEpisode(Episode):
     def __init__(self, num: int, name: str, date: str, run_minus: int):
@@ -282,7 +299,7 @@ class TmdbTvShow(TvShow):
                  language: str,
                  poster: str,
                  rate: Rate,
-                 id: int,
+                 tmdb_id: int,
                  seasons: list[TmdbSeason]):
         self.title = title
         self.original_title = original_title
@@ -290,7 +307,7 @@ class TmdbTvShow(TvShow):
         self.years = years
         self.poster = tmdb_image_path + poster
         self.rate = rate
-        self.id = id
+        self.tmdb_id = tmdb_id
         self.seasons = {season.num: season for season in seasons}
         self.max_season = seasons[-1].num
 
@@ -311,3 +328,6 @@ class TmdbTvShow(TvShow):
 
     def get_poster(self) -> str:
         return self.poster
+
+    def get_link(self) -> str:
+        return f'{tmdb_tv_path}/{self.tmdb_id}'

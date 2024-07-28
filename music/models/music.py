@@ -21,6 +21,9 @@ class Album:
     def get_poster(self) -> str or None:
         return None
 
+    def get_link(self) -> str or None:
+        return None
+
     def to_dict(self) -> dict:
         return {
             'title': self.get_titles()[0],
@@ -29,6 +32,7 @@ class Album:
             'score': self.get_rate().score if self.get_rate() is not None else None,
             'votes': self.get_rate().votes if self.get_rate() is not None else None,
             'poster': self.get_poster(),
+            'link': self.get_link(),
         }
 
 
@@ -40,6 +44,7 @@ class DoubanAlbum(Album):
                  year: int,
                  style: str,
                  poster: str,
+                 link: str,
                  douban_rate: Rate):
         self.title = title
         self.alias = alias
@@ -47,6 +52,7 @@ class DoubanAlbum(Album):
         self.year = year
         self.style = style
         self.poster = poster
+        self.link = link
         self.douban_rate = douban_rate
 
     def get_titles(self) -> list[str]:
@@ -66,6 +72,9 @@ class DoubanAlbum(Album):
 
     def get_poster(self) -> str:
         return self.poster
+
+    def get_link(self) -> str:
+        return self.link
 
 
 class LocalAlbum(Album):

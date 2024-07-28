@@ -18,6 +18,9 @@ class Book:
     def get_poster(self) -> str or None:
         return None
 
+    def get_link(self) -> str or None:
+        return None
+
     def to_dict(self) -> dict:
         return {
             'title': self.get_titles()[0],
@@ -25,6 +28,7 @@ class Book:
             'score': self.get_rate().score if self.get_rate() is not None else None,
             'votes': self.get_rate().votes if self.get_rate() is not None else None,
             'poster': self.get_poster(),
+            'link': self.get_link(),
         }
 
 
@@ -35,12 +39,14 @@ class DoubanBook(Book):
                  author: str,
                  year: int,
                  poster: str,
+                 link: str,
                  douban_rate: Rate):
         self.title = title
         self.sub_title = sub_title
         self.author = author
         self.year = year
         self.poster = poster
+        self.link = link
         self.douban_rate = douban_rate
 
     def get_titles(self) -> list[str]:
@@ -60,6 +66,9 @@ class DoubanBook(Book):
 
     def get_poster(self) -> str:
         return self.poster
+
+    def get_link(self) -> str:
+        return self.link
 
 
 class LocalBook(Book):

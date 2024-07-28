@@ -1,5 +1,5 @@
 from datetime import datetime
-from constant import tmdb_image_path
+from constant import tmdb_image_path, tmdb_movie_path
 
 
 class Rate:
@@ -10,10 +10,10 @@ class Rate:
 
 
 class MovieSet:
-    def __init__(self, id: int, name: str, type: str):
-        self.id = id
+    def __init__(self, set_id: int, name: str, set_type: str):
+        self.set_id = set_id
         self.name = name
-        self.type = type
+        self.set_type = set_type
 
 
 class Movie:
@@ -32,6 +32,9 @@ class Movie:
     def get_poster(self) -> str or None:
         return None
 
+    def get_link(self) -> str or None:
+        return None
+
     def to_dict(self) -> dict:
         return {
             'title': self.get_titles()[0],
@@ -39,6 +42,7 @@ class Movie:
             'score': self.get_rate().score if self.get_rate() is not None else None,
             'votes': self.get_rate().votes if self.get_rate() is not None else None,
             'poster': self.get_poster(),
+            'link': self.get_link(),
         }
 
 
@@ -50,6 +54,7 @@ class DoubanMovie(Movie):
                  country: list[str],
                  style: list[str],
                  poster: str,
+                 link: str,
                  douban_rate: Rate):
         self.title = title
         self.alias = alias
@@ -57,6 +62,7 @@ class DoubanMovie(Movie):
         self.country = country
         self.style = style
         self.poster = poster
+        self.link = link
         self.douban_rate = douban_rate
 
     def get_titles(self) -> list[str]:
@@ -73,6 +79,9 @@ class DoubanMovie(Movie):
 
     def get_poster(self) -> str:
         return self.poster
+
+    def get_link(self) -> str:
+        return self.link
 
 
 class LocalMovie(Movie):
@@ -109,6 +118,9 @@ class LocalMovie(Movie):
     def get_poster(self) -> str:
         return self.poster
 
+    def get_link(self) -> str:
+        return f'{tmdb_movie_path}/{self.tmdb_id}'
+
 
 class TmdbMovie(Movie):
     def __init__(self,
@@ -118,7 +130,7 @@ class TmdbMovie(Movie):
                  language: str,
                  poster: str,
                  rate: Rate,
-                 id: int,
+                 tmdb_id: int,
                  move_set: MovieSet):
         self.title = title
         self.original_title = original_title
@@ -126,7 +138,7 @@ class TmdbMovie(Movie):
         self.language = language
         self.poster = tmdb_image_path + poster
         self.rate = rate
-        self.id = id
+        self.tmdb_id = tmdb_id
         self.move_set = move_set
 
     def get_titles(self) -> list[str]:
@@ -146,3 +158,6 @@ class TmdbMovie(Movie):
 
     def get_poster(self) -> str:
         return self.poster
+
+    def get_link(self) -> str:
+        return f'{tmdb_movie_path}/{self.tmdb_id}'

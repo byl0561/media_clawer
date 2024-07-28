@@ -14,7 +14,7 @@ def flush_tmdb(folder):
     local_movies = crawl_local(folder)
     existing_movie_sets = set()
     for movie in local_movies:
-        tmdb_set_id = movie.tmdb_set.id
+        tmdb_set_id = movie.tmdb_set.set_id
         if tmdb_set_id is None:
             continue
         existing_movie_sets.add(tmdb_set_id)

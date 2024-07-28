@@ -20,6 +20,7 @@ def crawl_douban_250(cache=True) -> list[DoubanAlbum]:
         bs = bs.find('div', class_="indent")
         for item in bs.find_all('table'):
             title = item.find('div', class_="pl2").find('a').contents[0].strip()
+            link = item.find('div', class_="pl2").find('a').attrs['href']
             alias = item.find('div', class_="pl2").find('a').find('span').get_text().strip() if (
                     item.find('div', class_="pl2").find('a').find('span') is not None) else None
             artist = item.find('div', class_="pl2").find('p', class_="pl").get_text().strip().split(' / ')[0]
@@ -33,6 +34,6 @@ def crawl_douban_250(cache=True) -> list[DoubanAlbum]:
                                                                                                       '').replace('(',
                                                                                                                   '').replace(
                     ')', '').strip())
-            albums.append(DoubanAlbum(title, alias, artist, year, style, poster, Rate(score, votes, '豆瓣音乐')))
+            albums.append(DoubanAlbum(title, alias, artist, year, style, poster, link, Rate(score, votes, '豆瓣音乐')))
 
     return albums

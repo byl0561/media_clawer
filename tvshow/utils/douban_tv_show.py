@@ -23,6 +23,7 @@ def crawl_dou_list(url: str, cache=True) -> list[DoubanTvShow]:
             if item.find('div', class_="title") is None:
                 continue
             title = item.find('div', class_="title").get_text().strip().split(' ')[0]
+            link = item.find('div', class_="title").find('a').attrs['href']
             abstract = item.find('div', class_="abstract").get_text().strip().split('\n')
             year = int(abstract[8].replace('年份:', '').strip())
             country = abstract[6].replace('制片国家/地区:', '').strip()
@@ -32,7 +33,7 @@ def crawl_dou_list(url: str, cache=True) -> list[DoubanTvShow]:
             votes = int(
                 item.find('div', class_='rating').select_one('span:last-child').get_text()
                 .replace('人评价)', '').replace('(', '').strip())
-            tv_shows.append(DoubanTvShow(title, year, country, style, poster, Rate(score, votes, '豆瓣')))
+            tv_shows.append(DoubanTvShow(title, year, country, style, poster, link, Rate(score, votes, '豆瓣')))
 
     return tv_shows
 
