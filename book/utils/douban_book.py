@@ -54,6 +54,7 @@ def crawl_douban_250(cache=True) -> list[DoubanBook]:
 def check(book: DoubanBook) -> bool:
     young_books = ['中国少年儿童百科全书', '十万个为什么']
     for title in book.get_titles():
-        if title in young_books:
-            return False
+        for young_book in young_books:
+            if title in young_book or young_book in title:
+                return False
     return True
