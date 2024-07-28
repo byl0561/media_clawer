@@ -32,7 +32,7 @@ def process_file(path: str):
             alias = f.readlines()
 
     poster = None
-    pattern = os.path.join(root, 'cover.*')
+    pattern = os.path.join(glob.escape(root), 'cover.*')
     cover_files = glob.glob(pattern)
     if len(cover_files) > 0:
         poster = cover_files[0].replace(book_folder, '')

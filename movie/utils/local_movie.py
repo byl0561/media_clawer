@@ -35,7 +35,7 @@ def process_file(path: str):
         root_element.find('set').text if root_element.find('set') is not None else None)
 
     poster = None
-    pattern = os.path.join(root, 'poster.*')
+    pattern = os.path.join(glob.escape(root), 'poster.*')
     cover_files = glob.glob(pattern)
     if len(cover_files) > 0:
         poster = cover_files[0].replace(movie_folder, '')

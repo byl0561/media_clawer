@@ -30,7 +30,7 @@ def process_dir(path: str):
             alias = f.readlines()
 
     poster = None
-    pattern = os.path.join(path, 'cover.*')
+    pattern = os.path.join(glob.escape(path), 'cover.*')
     cover_files = glob.glob(pattern)
     if len(cover_files) > 0:
         poster = cover_files[0].replace(music_folder, '')

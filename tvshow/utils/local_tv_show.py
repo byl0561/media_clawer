@@ -30,7 +30,7 @@ def process_file(path: str):
     tmdb_id = int(root_element.find("./uniqueid[@type='tmdb']").text)
 
     poster = None
-    pattern = os.path.join(root, 'poster.*')
+    pattern = os.path.join(glob.escape(root), 'poster.*')
     cover_files = glob.glob(pattern)
     if len(cover_files) > 0:
         poster = cover_files[0]
