@@ -6,13 +6,7 @@ from book.models.book import *
 
 def book_similarity(book1: Book, book2: Book) -> bool:
     book1_names = book1.get_titles()
-    book1_author = book1.get_author()
-
     book2_names = book2.get_titles()
-    book2_author = book2.get_author()
-
-    if difflib.SequenceMatcher(None, book1_author, book2_author).ratio() <= 0.2:
-        return False
 
     for book1_name in book1_names:
         for book2_name in book2_names:
