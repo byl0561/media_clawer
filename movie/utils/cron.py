@@ -1,13 +1,20 @@
+import logging
 from constant import movie_folder
 from movie.utils.douban_movie import crawl_douban_250
 from movie.utils.local_movie import crawl_local
 from movie.utils.tmdb_movie import get_tmdb_movies_in_set
 
+logger = logging.getLogger()
 
 def cronjob():
-    crawl_douban_250(cache=False)
-
-    flush_tmdb(movie_folder)
+    logger.warning('movie cronjob start')
+    try:
+        crawl_douban_250(cache=False)
+        flush_tmdb(movie_folder)
+        logger.warning('movie cronjob succeed')
+    except Exception as e:
+        logger.error('movie cronjob failed')
+        logger.error(e)
 
 
 def flush_tmdb(folder):

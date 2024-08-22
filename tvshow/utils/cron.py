@@ -1,17 +1,24 @@
+import logging
 from constant import tv_folder, anime_folder
 from tvshow.utils.bangumi_tv_show import crawl_bangumi_tv_show_80
 from tvshow.utils.douban_tv_show import crawl_dou_list
 from tvshow.utils.local_tv_show import crawl_local
 from tvshow.utils.tmdb_tv_show import get_tmdb_tv_show, get_tmdb_tv_show_season
 
+logger = logging.getLogger()
 
 def cronjob():
-    crawl_dou_list('https://www.douban.com/doulist/116238969/', cache=False)
-    crawl_dou_list('https://www.douban.com/doulist/113919174/', cache=False)
-    crawl_bangumi_tv_show_80(cache=False)
-
-    flush_tmdb(tv_folder)
-    flush_tmdb(anime_folder)
+    logger.warning('tvshow cronjob start')
+    try:
+        crawl_dou_list('https://www.douban.com/doulist/116238969/', cache=False)
+        crawl_dou_list('https://www.douban.com/doulist/113919174/', cache=False)
+        crawl_bangumi_tv_show_80(cache=False)
+        flush_tmdb(tv_folder)
+        flush_tmdb(anime_folder)
+        logger.warning('tvshow cronjob succeed')
+    except Exception as e:
+        logger.error('tvshow cronjob failed')
+        logger.error(e)
 
 
 def flush_tmdb(folder):
