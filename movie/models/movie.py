@@ -136,7 +136,7 @@ class TmdbMovie(Movie):
         self.original_title = original_title
         self.date = date
         self.language = language
-        self.poster = tmdb_image_path + poster
+        self.poster = tmdb_image_path + poster if poster is not None else None
         self.rate = rate
         self.tmdb_id = tmdb_id
         self.move_set = move_set
