@@ -5,6 +5,7 @@ WORKDIR /app
 
 RUN mkdir -p /Volumes/Movie /Volumes/TV /Volumes/Anime /Volumes/Music /Volumes/Book
 
+RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
 RUN apt-get update && apt-get install -y cron
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
