@@ -13,4 +13,4 @@ COPY . /app
 RUN python manage.py crontab add
 RUN chmod +x start.sh
 EXPOSE 8000
-CMD ["start.sh"]
+CMD ["/app/start.sh"]
