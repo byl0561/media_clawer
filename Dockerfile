@@ -13,12 +13,12 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=frontend-build /app/dist /usr/share/nginx/html
-COPY nginx/nginx.conf /etc/nginx/sites-available/default
+COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
 RUN mkdir -p /Volumes/Movie /Volumes/TV /Volumes/Anime /Volumes/Music /Volumes/Book
 WORKDIR /app
 COPY backend/ .
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip install gunicorn
 RUN python manage.py crontab add
-EXPOSE 80
+EXPOSE 8080
 CMD ["sh", "-c", "nginx -g 'daemon off;' & cron & gunicorn --bind 0.0.0.0:8000 mediacrawler.wsgi:application"]
