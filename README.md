@@ -15,7 +15,7 @@
 
 > 本地的电视剧需要使用 [tinyMediaManager](https://www.tinymediamanager.org/) 进行刮削，刮削器需要选择 [TMDB](https://www.themoviedb.org/)，刮削完成后需要整理文件。
 
-- 豆列（电视剧TOP100 + 进10年点数据TOP100）：tv/douban100/diff
+- 豆列（电视剧TOP100 + 近10年电视剧TOP100）：tv/douban100/diff
 
 - 本地缺少的季：tv/local/season/missing
 
