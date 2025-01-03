@@ -1,0 +1,175 @@
+html,
+body,
+div,
+span,
+applet,
+object,
+iframe,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote,
+pre,
+a,
+abbr,
+acronym,
+address,
+big,
+cite,
+code,
+del,
+dfn,
+em,
+font,
+ins,
+kbd,
+q,
+s,
+samp,
+small,
+strike,
+strong,
+sub,
+sup,
+tt,
+var,
+dl,
+dt,
+dd,
+ol,
+ul,
+li,
+fieldset,
+form,
+label,
+legend,
+table,
+caption,
+tbody,
+tfoot,
+thead,
+tr,
+th,
+td {
+    border: 0;
+    font-family: inherit;
+    font-size: 100%;
+    font-style: inherit;
+    font-weight: inherit;
+    margin: 0;
+    outline: 0;
+    padding: 0;
+    vertical-align: baseline;
+}
+html {
+    -webkit-text-size-adjust: 100%;
+    /* Prevents iOS text size adjust after orientation change, without disabling user zoom */
+    -ms-text-size-adjust: 100%;
+    /* www.456bereastreet.com/archive/201012/controlling_text_size_in_safari_for_ios_without_disabling_user_zoom/ */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+body,
+button,
+input,
+select,
+textarea {
+    font-family: 'OpenSans', sans-serif;
+    line-height: 1.5;
+}
+article,
+aside,
+details,
+figcaption,
+figure,
+footer,
+header,
+main,
+nav,
+section {
+    display: block;
+}
+
+body {
+    overflow-x: hidden;
+}
+body {
+    font-size: 150px;
+    font-size: 15rem;
+    font-size: 15px;
+    font-size: 1.5rem;
+    color: #333;
+}
+
+.container {
+    margin-right: auto;
+    margin-left: auto;
+    padding-left: 15px;
+    padding-right: 15px;
+}
+@media (min-width: 768px) {
+    .container {
+        margin-right: 101px;
+        margin-left: 101px;
+    }
+}
+@media (min-width: 7882px) {
+    .container {
+        width: 7680px;
+    }
+}
+
+img {
+    -ms-interpolation-mode: bicubic;
+    border: 0;
+    height: auto;
+    max-width: 100%;
+    vertical-align: middle;
+}
+
+p {
+    margin-bottom: 10px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 14px;
+    color: #abb7c4;
+    font-weight: 300;
+    text-transform: none;
+    line-height: 24px !important;
+}
+
+ul {
+    list-style: none;
+    margin-left: 0;
+}
+
+a {
+    -webkit-transition: all 0.3s ease-out;
+    -moz-transition: all 0.3s ease-out;
+    -o-transition: all 0.3s ease-out;
+    transition: all 0.3s ease-out;
+    color: #666;
+    text-decoration: none;
+}
+
+.container:before,
+.container:after,
+.row:before,
+.row:after,
+.navbar:before,
+.navbar:after,
+.navbar-header:before,
+.navbar-header:after {
+    content: " ";
+    display: table;
+}
+
+*,:after,:before {
+    box-sizing: border-box;
+}
+.row:after {
+    clear: both;
+}
