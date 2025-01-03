@@ -17,8 +17,7 @@ COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
 RUN mkdir -p /Volumes/Movie /Volumes/TV /Volumes/Anime /Volumes/Music /Volumes/Book
 WORKDIR /app
 COPY backend/ .
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install gunicorn
+RUN pip install --no-cache-dir -r requirements.txt
 RUN python manage.py crontab add
 EXPOSE 8080
-CMD ["sh", "-c", "nginx -g 'daemon off;' & cron & gunicorn --bind 0.0.0.0:8000 mediacrawler.wsgi:application"]
+CMD ["sh", "-c", "nginx -g 'daemon off;' & cron & python manage.py runserver 0.0.0.0:8000"]
