@@ -20,4 +20,4 @@ COPY backend/ .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN python manage.py crontab add
 EXPOSE 8080
-CMD ["sh", "-c", "nginx -g 'daemon off;' & cron & python manage.py runserver 0.0.0.0:8000"]
+CMD ["sh", "-c", "printenv > /etc/environment & nginx -g 'daemon off;' & cron & python manage.py runserver 0.0.0.0:8000"]
