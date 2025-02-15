@@ -84,12 +84,21 @@ def check(anime: BangumiTvShow) -> bool:
     if rate.votes < 2000:
         return False
 
-    long_shows = ['死神', '银魂']
+    long_shows = ['死神', '银魂', "航海王"]
     for title in anime.get_titles():
-        if title in long_shows:
+        if get_main_title(title) in long_shows:
             return False
 
     return True
+
+
+def get_main_title(title: str) -> str:
+    if not title:
+        return ""
+    index = title.find("：")
+    if index == -1:
+        return title
+    return title[:index]
 
 
 def trim_title(title: str or None) -> str or None:
