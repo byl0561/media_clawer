@@ -22,7 +22,7 @@ def process_file(path: str):
     tree = ET.parse(nfo_path)
     root_element = tree.getroot()
     title = root_element.find('title').text
-    original_title = root_element.find('originaltitle').text
+    original_title = root_element.find('originaltitle').text if root_element.find('originaltitle') is not None else title
     year = int(re.search(r'\((\d{4})\)', root.split('/')[-1]).group(1))
     country_list = [country.text for country in root_element.findall('country')]
     tmdb_score = float(root_element.find("./ratings/rating[@name='themoviedb']/value").text)
