@@ -40,7 +40,7 @@ def crawl_douban_250(cache=True) -> list[DoubanMovie]:
             poster = item.find('div', class_='pic').find('img').get('src').strip()
             score = float(item.find('span', class_='rating_num').get_text().strip())
             votes = int(
-                item.find('div', class_='star').select_one('span:last-child').get_text().replace('人评价', '').strip())
+                item.find('div', class_='bd').find('div', class_='').select_one('span:last-child').get_text().replace('人评价', '').strip())
             movies.append(DoubanMovie(title, alias, year, country, style, poster, link, Rate(score, votes, '豆瓣电影')))
 
     return movies
