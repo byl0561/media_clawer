@@ -1,52 +1,48 @@
 """TV/anime HTTP endpoints (thin: work lives in :mod:`tvshow.services`)."""
+from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core import conf
 from core.images import serve_media_image
 from tvshow import services
+from tvshow.serializers import LocalGapSerializer, ShowDiffSerializer
 
 
-class DoubanDiffView(APIView):
-    """``GET tv/douban100/diff``."""
+class TvDiffView(APIView):
+    """Douban TV doulists vs. the local TV library."""
 
+    @extend_schema(responses=ShowDiffSerializer, operation_id="tv_shows_diff")
     def get(self, request):
-        return Response(services.douban100_diff())
+        return Response(services.tv_diff())
 
 
-class BangumiDiffView(APIView):
-    """``GET anime/bangumi/diff``."""
+class AnimeDiffView(APIView):
+    """Bangumi TV ranking vs. the local anime library."""
 
+    @extend_schema(responses=ShowDiffSerializer, operation_id="anime_diff")
     def get(self, request):
-        return Response(services.bangumi_diff())
+        return Response(services.anime_diff())
 
 
-class TvSeasonMissingView(APIView):
-    """``GET tv/local/season/missing``."""
+class TvLocalGapsView(APIView):
+    """Local TV shows missing whole seasons and/or behind on episodes."""
 
+    @extend_schema(
+        responses=LocalGapSerializer(many=True), operation_id="tv_shows_local_gaps"
+    )
     def get(self, request):
-        return Response(services.season_missing("tv"))
+        return Response(services.local_gaps("tv"))
 
 
-class TvEpisodeMissingView(APIView):
-    """``GET tv/local/episode/missing``."""
+class AnimeLocalGapsView(APIView):
+    """Local anime missing whole seasons and/or behind on episodes."""
 
+    @extend_schema(
+        responses=LocalGapSerializer(many=True), operation_id="anime_local_gaps"
+    )
     def get(self, request):
-        return Response(services.episode_missing("tv"))
-
-
-class AnimeSeasonMissingView(APIView):
-    """``GET anime/local/season/missing``."""
-
-    def get(self, request):
-        return Response(services.season_missing("anime"))
-
-
-class AnimeEpisodeMissingView(APIView):
-    """``GET anime/local/episode/missing``."""
-
-    def get(self, request):
-        return Response(services.episode_missing("anime"))
+        return Response(services.local_gaps("anime"))
 
 
 def tv_poster(request, image_path):

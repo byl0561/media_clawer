@@ -2,9 +2,11 @@
 
 The domain model objects (DoubanMovie, LocalTvShow, TmdbMovie, ...) all expose
 the same getter protocol, so one base serializer covers the shared fields and
-each app only declares its extra keys. Output is byte-compatible with the old
-hand-written ``to_dict()`` payloads the Vue frontend already consumes.
+each app only declares its extra keys. Return type hints are present so
+drf-spectacular emits an accurate (warning-free) OpenAPI schema.
 """
+from typing import Optional
+
 from rest_framework import serializers
 
 __all__ = ["RatedMediaSerializer"]
@@ -27,16 +29,16 @@ class RatedMediaSerializer(serializers.Serializer):
         titles = obj.get_titles()
         return titles[0] if titles else ""
 
-    def get_score(self, obj):
+    def get_score(self, obj) -> Optional[float]:
         rate = obj.get_rate()
         return rate.score if rate is not None else None
 
-    def get_votes(self, obj):
+    def get_votes(self, obj) -> Optional[int]:
         rate = obj.get_rate()
         return rate.votes if rate is not None else None
 
-    def get_poster(self, obj):
+    def get_poster(self, obj) -> Optional[str]:
         return obj.get_poster()
 
-    def get_link(self, obj):
+    def get_link(self, obj) -> Optional[str]:
         return obj.get_link()

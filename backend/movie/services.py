@@ -8,6 +8,7 @@ keeps warm.
 from datetime import datetime
 
 from core import conf
+from core.exceptions import UpstreamUnavailable
 from movie.crawlers.douban import crawl_douban_250
 from movie.crawlers.local import crawl_local
 from movie.crawlers.tmdb import get_tmdb_movies_in_set
@@ -33,8 +34,11 @@ def _serialize(movies) -> list:
     return MovieSerializer(movies, many=True).data
 
 
-def douban250_diff() -> dict:
+def diff() -> dict:
+    """Douban Top 250 vs. local library -> {"missing": [...], "extra": [...]}."""
     douban_movies = crawl_douban_250()
+    if not douban_movies:
+        raise UpstreamUnavailable()
     local_movies = crawl_local(conf.MOVIE_ROOT)
 
     missing_movies = get_missing_movies(douban_movies, local_movies)
@@ -52,12 +56,16 @@ def douban250_diff() -> dict:
         )
     ]
     return {
-        "missing_movies": _serialize(missing_movies),
-        "extra_movies": _serialize(visible_extra),
+        "missing": _serialize(missing_movies),
+        "extra": _serialize(visible_extra),
     }
 
 
-def collection_complete() -> dict:
+def collection_gaps() -> list:
+    """Owned TMDB collections with entries missing locally.
+
+    -> [{"collection": <name>, "missing": [<movie>, ...]}, ...]
+    """
     local_movies = crawl_local(conf.MOVIE_ROOT)
 
     existing_movie_sets: dict = {}
@@ -67,7 +75,7 @@ def collection_complete() -> dict:
             continue
         existing_movie_sets.setdefault(tmdb_set_id, set()).add(movie.tmdb_id)
 
-    resp: dict = {}
+    result = []
     for tmdb_set_id, tmdb_ids in existing_movie_sets.items():
         missing = [
             m
@@ -75,13 +83,22 @@ def collection_complete() -> dict:
             if m.tmdb_id not in tmdb_ids and _legal_movie(m)
         ]
         if missing:
-            resp[missing[0].move_set.name] = _serialize(missing)
-    return resp
+            result.append(
+                {
+                    "collection": missing[0].move_set.name,
+                    "missing": _serialize(missing),
+                }
+            )
+    return result
 
 
 def refresh_all() -> None:
     """Repopulate the upstream Douban / TMDB caches (used by cron)."""
     crawl_douban_250(cache=False)
-    for movie in crawl_local(conf.MOVIE_ROOT):
-        if movie.tmdb_set.set_id is not None:
-            get_tmdb_movies_in_set(movie.tmdb_set.set_id, cache=False)
+    set_ids = {
+        m.tmdb_set.set_id
+        for m in crawl_local(conf.MOVIE_ROOT)
+        if m.tmdb_set.set_id is not None
+    }
+    for set_id in set_ids:
+        get_tmdb_movies_in_set(set_id, cache=False)

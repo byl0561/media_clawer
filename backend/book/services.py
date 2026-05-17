@@ -2,10 +2,11 @@
 
 Recomputed every request; only the upstream Douban response stays cached
 (via :mod:`core.http`), kept warm by cron. ``_is_retained_book`` is kept as
-the original unconditional ``True`` (so ``extra_books`` stays empty) to
-preserve the response contract exactly.
+the original unconditional ``True`` (so ``extra`` stays empty) to preserve
+the diff semantics exactly.
 """
 from core import conf
+from core.exceptions import UpstreamUnavailable
 from book.crawlers.douban import crawl_douban_250
 from book.crawlers.local import crawl_local
 from book.matching import get_missing_books
@@ -21,14 +22,17 @@ def _serialize(books) -> list:
     return BookSerializer(books, many=True).data
 
 
-def douban250_diff() -> dict:
+def diff() -> dict:
+    """Douban Top 250 vs. local library -> {"missing": [...], "extra": [...]}."""
     douban_books = crawl_douban_250()
+    if not douban_books:
+        raise UpstreamUnavailable()
     local_books = crawl_local(conf.BOOK_ROOT)
     missing_books = get_missing_books(douban_books, local_books)
     extra_books = get_missing_books(local_books, douban_books)
     return {
-        "missing_books": _serialize(missing_books),
-        "extra_books": _serialize([b for b in extra_books if not _is_retained_book(b)]),
+        "missing": _serialize(missing_books),
+        "extra": _serialize([b for b in extra_books if not _is_retained_book(b)]),
     }
 
 

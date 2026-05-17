@@ -1,42 +1,37 @@
 import type {ResponseWrapper} from "@/http/httpInstance";
 import instance from "@/http/httpInstance";
 
+// RESTful, versioned API. Nginx proxies `/api/` to the Django backend.
+const V1 = "/api/v1";
+
 export async function diffMovie(): Promise<ResponseWrapper> {
-    return await instance.get("/api/movie/douban250/diff")
+    return await instance.get(`${V1}/movies/diff`)
 }
 
-export async function appendMovieCollection(): Promise<ResponseWrapper> {
-    return await instance.get("/api/movie/local/collection/complete")
+export async function movieCollectionGaps(): Promise<ResponseWrapper> {
+    return await instance.get(`${V1}/movies/collection-gaps`)
 }
 
 export async function diffTV(): Promise<ResponseWrapper> {
-    return await instance.get("/api/tv/douban100/diff")
+    return await instance.get(`${V1}/tv-shows/diff`)
 }
 
-export async function appendTVSeason(): Promise<ResponseWrapper> {
-    return await instance.get("/api/tv/local/season/missing")
-}
-
-export async function appendTVEpisode(): Promise<ResponseWrapper> {
-    return await instance.get("/api/tv/local/episode/missing")
+export async function tvLocalGaps(): Promise<ResponseWrapper> {
+    return await instance.get(`${V1}/tv-shows/local-gaps`)
 }
 
 export async function diffAnime(): Promise<ResponseWrapper> {
-    return await instance.get("/api/anime/bangumi/diff")
+    return await instance.get(`${V1}/anime/diff`)
 }
 
-export async function appendAnimeSeason(): Promise<ResponseWrapper> {
-    return await instance.get("/api/anime/local/season/missing")
-}
-
-export async function appendAnimeEpisode(): Promise<ResponseWrapper> {
-    return await instance.get("/api/anime/local/episode/missing")
+export async function animeLocalGaps(): Promise<ResponseWrapper> {
+    return await instance.get(`${V1}/anime/local-gaps`)
 }
 
 export async function diffAlbum(): Promise<ResponseWrapper> {
-    return await instance.get("/api/album/douban250/diff")
+    return await instance.get(`${V1}/albums/diff`)
 }
 
 export async function diffBook(): Promise<ResponseWrapper> {
-    return await instance.get("/api/book/douban250/diff")
+    return await instance.get(`${V1}/books/diff`)
 }

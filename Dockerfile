@@ -20,4 +20,7 @@ COPY backend/ .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN python manage.py crontab add
 EXPOSE 8080
-CMD ["sh", "-c", "printenv > /etc/environment & nginx -g 'daemon off;' & cron & python manage.py runserver 0.0.0.0:8000"]
+# gunicorn (sync workers) instead of `runserver`: production-grade, and each
+# worker is a single-threaded process so the per-request NAS-scan
+# multiprocessing.Pool no longer forks from a multithreaded server.
+CMD ["sh", "-c", "printenv > /etc/environment & nginx -g 'daemon off;' & cron & gunicorn mediacrawler.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-3} --timeout ${GUNICORN_TIMEOUT:-300}"]

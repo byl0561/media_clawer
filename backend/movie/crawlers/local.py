@@ -57,7 +57,7 @@ def process_file(path: str):
     cover_files = glob.glob(os.path.join(glob.escape(root), "poster.*"))
     if len(cover_files) > 0:
         poster = cover_files[0].replace(conf.MOVIE_ROOT, "")
-        poster = f"/movie/poster/{poster}"
+        poster = f"/v1/movies/poster/{poster}"
 
     return LocalMovie(
         title,

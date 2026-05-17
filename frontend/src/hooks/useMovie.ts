@@ -1,104 +1,39 @@
-import type {MediaGroup, MediaItem, MediaItemGroupData} from "@/types";
-import {appendMovieCollection, diffMovie} from "@/http/api";
+import type {MediaGroup, MediaItemGroupData} from "@/types";
+import {diffMovie, movieCollectionGaps} from "@/http/api";
+import {buildGroup, once, toMedia} from "@/hooks/diffHelper";
 
 export default function () {
-    function movieHttpToMedia(movie: any): MediaItem {
-        return {
-            title: movie.title,
-            img: movie.poster,
-            score: movie.score,
-            link: movie.link,
-        }
-    }
+    const loadDiff = once(diffMovie);
 
-    async function getLostMovie(): Promise<MediaItemGroupData> {
-        const group: MediaItemGroupData = {
-            valid: true,
-            mediaItems: [],
-        }
-        const httpRes = await diffMovie()
-        if (!httpRes.success) {
-            group.valid = false
-            return group
-        }
-
-        if (httpRes.data == null) {
-            return group
-        }
-
-        for (const item of httpRes.data.missing_movies) {
-            group.mediaItems.push(movieHttpToMedia(item))
-        }
-
-        return group
-    }
+    const getLostMovie = () => buildGroup(loadDiff, (d) => d.missing);
+    const getOutdatedMovie = () => buildGroup(loadDiff, (d) => d.extra);
 
     async function getContinuedMovie(): Promise<MediaItemGroupData> {
-        const group: MediaItemGroupData = {
-            valid: true,
-            mediaItems: [],
+        const group: MediaItemGroupData = {valid: true, mediaItems: []};
+        const res = await movieCollectionGaps();
+        if (!res.success) {
+            group.valid = false;
+            return group;
         }
-        const httpRes = await appendMovieCollection()
-        if (!httpRes.success) {
-            group.valid = false
-            return group
-        }
-
-        if (httpRes.data == null) {
-            return group
-        }
-
-        for (const [key, value] of Object.entries(httpRes.data)) {
-            const items = value as any[]
-            for (const item of items) {
-                const movie = movieHttpToMedia(item)
-                movie.title = `[${key}] ${movie.title}`
-                group.mediaItems.push(movie)
+        if (res.data == null) return group;
+        for (const entry of res.data) {
+            for (const item of entry.missing) {
+                const media = toMedia(item);
+                media.title = `[${entry.collection}] ${media.title}`;
+                group.mediaItems.push(media);
             }
         }
-
-        return group
-    }
-
-    async function getOutdatedMovie(): Promise<MediaItemGroupData> {
-        const group: MediaItemGroupData = {
-            valid: true,
-            mediaItems: [],
-        }
-        const httpRes = await diffMovie()
-        if (!httpRes.success) {
-            group.valid = false
-            return group
-        }
-
-        if (httpRes.data == null) {
-            return group
-        }
-
-        for (const item of httpRes.data.extra_movies) {
-            group.mediaItems.push(movieHttpToMedia(item))
-        }
-
-        return group
+        return group;
     }
 
     const movie: MediaGroup = {
         name: "电影",
         mediaItemFunctionGroups: [
-            {
-                name: "最新",
-                acquireData: getLostMovie,
-            },
-            {
-                name: "续集",
-                acquireData: getContinuedMovie,
-            },
-            {
-                name: "过时",
-                acquireData: getOutdatedMovie,
-            }
-        ]
-    }
+            {name: "最新", acquireData: getLostMovie},
+            {name: "续集", acquireData: getContinuedMovie},
+            {name: "过时", acquireData: getOutdatedMovie},
+        ],
+    };
 
-    return {movie}
+    return {movie};
 }

@@ -29,12 +29,12 @@ def process_file(path: str):
     alias = []
     if os.path.exists(os.path.join(root, "alias.txt")):
         with open(os.path.join(root, "alias.txt"), "r") as f:
-            alias = f.readlines()
+            alias = f.read().splitlines()
 
     poster = None
     cover_files = glob.glob(os.path.join(glob.escape(root), "cover.*"))
     if len(cover_files) > 0:
-        poster = "/book/cover/" + cover_files[0].replace(conf.BOOK_ROOT, "")
+        poster = "/v1/books/cover/" + cover_files[0].replace(conf.BOOK_ROOT, "")
 
     return LocalBook(title, alias, author, poster)
 

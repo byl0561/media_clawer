@@ -6,7 +6,7 @@ export interface ResponseWrapper{
 }
 
 const instance:AxiosInstance = axios.create({
-    timeout: 60000,
+    timeout: 300000,
     headers: {
         'Content-Type': 'application/json',
     },

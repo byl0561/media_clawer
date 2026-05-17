@@ -16,6 +16,7 @@ def get_tmdb_movies_in_set(movie_set_id: int, cache: bool = True) -> list:
         cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
         sleep_s=0.2,
         need_cache=cache,
+        retry=True,
     )
     if res is None:
         return []

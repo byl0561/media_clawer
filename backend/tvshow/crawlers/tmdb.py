@@ -14,7 +14,11 @@ def get_tmdb_tv_show(tv_show_id: int, cache: bool = True) -> Optional[TmdbTvShow
         f"?api_key={conf.TMDB_API_KEY}&language=zh-CN"
     )
     res = http_get_with_cache(
-        url, cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES, sleep_s=0.2, need_cache=cache
+        url,
+        cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
+        sleep_s=0.2,
+        need_cache=cache,
+        retry=True,
     )
     if res is None:
         return None
@@ -56,7 +60,11 @@ def get_tmdb_tv_show_season(
         f"?api_key={conf.TMDB_API_KEY}&language=zh-CN"
     )
     res = http_get_with_cache(
-        url, cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES, sleep_s=0.2, need_cache=cache
+        url,
+        cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
+        sleep_s=0.2,
+        need_cache=cache,
+        retry=True,
     )
     if res is None:
         return None

@@ -4,10 +4,15 @@ The diff is recomputed on every request; only the upstream Douban/Bangumi/
 TMDB responses stay cached (via :mod:`core.http`), kept warm by cron. ``tv``
 and ``anime`` share this module because the anime endpoints have always been
 served by this app against the anime library root.
+
+``local_gaps`` merges the old season-missing and episode-missing endpoints:
+one local scan + one ``get_tmdb_tv_show`` per show (instead of two passes),
+returning both whole-missing seasons and behind-on-episodes seasons.
 """
 from datetime import datetime
 
 from core import conf
+from core.exceptions import UpstreamUnavailable
 from tvshow.crawlers.bangumi import crawl_bangumi_tv_show_80
 from tvshow.crawlers.douban import crawl_dou_list
 from tvshow.crawlers.local import crawl_local
@@ -51,35 +56,40 @@ def _shows(tv_shows) -> list:
     return TvShowSerializer(tv_shows, many=True).data
 
 
-# --- diff payloads ------------------------------------------------------
-def douban100_diff() -> dict:
+def _diff(source_shows, local_shows, is_retained) -> dict:
+    return {
+        "missing": _shows(get_missing_tv_shows(source_shows, local_shows)),
+        "extra": _shows(
+            [s for s in get_missing_tv_shows(local_shows, source_shows) if not is_retained(s)]
+        ),
+    }
+
+
+def tv_diff() -> dict:
     douban_tv_shows = combine_tv_show(
         crawl_dou_list(_DOULIST_ALL), crawl_dou_list(_DOULIST_RECENT)
     )
-    local_tv_shows = crawl_local(conf.TV_ROOT)
-    missing = get_missing_tv_shows(douban_tv_shows, local_tv_shows)
-    extra = get_missing_tv_shows(local_tv_shows, douban_tv_shows)
-    return {
-        "missing_tv_shows": _shows(missing),
-        "extra_tv_shows": _shows([s for s in extra if not _is_retained_tv_show(s)]),
-    }
+    if not douban_tv_shows:
+        raise UpstreamUnavailable()
+    return _diff(douban_tv_shows, crawl_local(conf.TV_ROOT), _is_retained_tv_show)
 
 
-def bangumi_diff() -> dict:
+def anime_diff() -> dict:
     bangumi_shows = crawl_bangumi_tv_show_80()
-    local_animates = crawl_local(conf.ANIME_ROOT)
-    missing = get_missing_tv_shows(bangumi_shows, local_animates)
-    extra = get_missing_tv_shows(local_animates, bangumi_shows)
-    return {
-        "missing_animates": _shows(missing),
-        "extra_animates": _shows([s for s in extra if not _is_retained_anime(s)]),
-    }
+    if not bangumi_shows:
+        raise UpstreamUnavailable()
+    return _diff(bangumi_shows, crawl_local(conf.ANIME_ROOT), _is_retained_anime)
 
 
-def season_missing(library: str) -> dict:
-    root = _LIBRARY_ROOT[library]
-    missing = {}
-    for local_tv_show in crawl_local(root):
+def local_gaps(library: str) -> list:
+    """Local shows that are missing whole seasons and/or behind on episodes.
+
+    -> [{"show": <show>, "missing_seasons": [{num,name}],
+         "incomplete_seasons": [{season_num,season_name,
+                                 local_max_episode,remote_max_episode}]}]
+    """
+    result = []
+    for local_tv_show in crawl_local(_LIBRARY_ROOT[library]):
         tmdb_tv_show = get_tmdb_tv_show(local_tv_show.tmdb_id)
         if tmdb_tv_show is None:
             continue
@@ -90,19 +100,8 @@ def season_missing(library: str) -> dict:
             if local_tv_show.get_season(tmdb_season.num) is None
             and _legal_season(tmdb_season)
         ]
-        if missing_seasons:
-            missing[local_tv_show.get_titles()[0]] = {
-                "tv_show": TvShowSerializer(tmdb_tv_show).data,
-                "missing_seasons": missing_seasons,
-            }
-    return missing
 
-
-def episode_missing(library: str) -> dict:
-    root = _LIBRARY_ROOT[library]
-    missing = {}
-    for local_tv_show in crawl_local(root):
-        missing_seasons = []
+        incomplete_seasons = []
         for season_num, max_episode in local_tv_show.map_season_max_episode().items():
             tmdb_season = get_tmdb_tv_show_season(local_tv_show.tmdb_id, season_num)
             if tmdb_season is None or tmdb_season.get_max_episode_num() <= max_episode:
@@ -114,7 +113,7 @@ def episode_missing(library: str) -> dict:
                     missing_max_episode = max(missing_max_episode, tmdb_episode.num)
 
             if missing_max_episode > max_episode:
-                missing_seasons.append(
+                incomplete_seasons.append(
                     {
                         "season_num": season_num,
                         "season_name": tmdb_season.name,
@@ -123,18 +122,17 @@ def episode_missing(library: str) -> dict:
                     }
                 )
 
-        if missing_seasons:
-            tmdb_tv_show = get_tmdb_tv_show(local_tv_show.tmdb_id)
-            if tmdb_tv_show is None:
-                continue
-            missing[local_tv_show.get_titles()[0]] = {
-                "tv_show": TvShowSerializer(tmdb_tv_show).data,
-                "missing_seasons": missing_seasons,
-            }
-    return missing
+        if missing_seasons or incomplete_seasons:
+            result.append(
+                {
+                    "show": TvShowSerializer(tmdb_tv_show).data,
+                    "missing_seasons": missing_seasons,
+                    "incomplete_seasons": incomplete_seasons,
+                }
+            )
+    return result
 
 
-# --- cron ---------------------------------------------------------------
 def _flush_tmdb(root: str) -> None:
     for local_tv_show in crawl_local(root):
         get_tmdb_tv_show(local_tv_show.tmdb_id, cache=False)

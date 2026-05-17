@@ -1,11 +1,12 @@
 """URL routing for the mediacrawler project.
 
-Paths and response shapes are intentionally identical to the pre-refactor API
-so the existing Vue frontend keeps working unchanged. Cross-app path scheme
-(``anime/*`` is served by the ``tvshow`` app against the anime library) is
-preserved, so routing is kept centralised here rather than per-app.
+RESTful, versioned API. Nginx proxies ``/api/`` to Django with the prefix
+stripped, so an external ``GET /api/v1/movies/diff`` arrives here as
+``v1/movies/diff``. ``anime`` is a first-class resource even though it is
+served by the ``tvshow`` app against the anime library root.
 """
 from django.urls import path
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from book import views as book_views
 from movie import views as movie_views
@@ -13,68 +14,61 @@ from music import views as music_views
 from tvshow import views as tv_views
 
 urlpatterns = [
-    # Movie
+    # Movies
+    path("v1/movies/diff", movie_views.DiffView.as_view(), name="movies-diff"),
     path(
-        "movie/douban250/diff",
-        movie_views.DoubanDiffView.as_view(),
-        name="movie-douban250-diff",
+        "v1/movies/collection-gaps",
+        movie_views.CollectionGapsView.as_view(),
+        name="movies-collection-gaps",
     ),
     path(
-        "movie/local/collection/complete",
-        movie_views.CollectionCompleteView.as_view(),
-        name="movie-collection-complete",
+        "v1/movies/poster/<path:image_path>",
+        movie_views.poster,
+        name="movies-poster",
     ),
-    path("movie/poster/<path:image_path>", movie_views.poster, name="movie-poster"),
-    # TV
+    # TV shows
+    path("v1/tv-shows/diff", tv_views.TvDiffView.as_view(), name="tv-shows-diff"),
     path(
-        "tv/douban100/diff",
-        tv_views.DoubanDiffView.as_view(),
-        name="tv-douban100-diff",
-    ),
-    path(
-        "tv/local/season/missing",
-        tv_views.TvSeasonMissingView.as_view(),
-        name="tv-season-missing",
+        "v1/tv-shows/local-gaps",
+        tv_views.TvLocalGapsView.as_view(),
+        name="tv-shows-local-gaps",
     ),
     path(
-        "tv/local/episode/missing",
-        tv_views.TvEpisodeMissingView.as_view(),
-        name="tv-episode-missing",
+        "v1/tv-shows/poster/<path:image_path>",
+        tv_views.tv_poster,
+        name="tv-shows-poster",
     ),
-    path("tv/poster/<path:image_path>", tv_views.tv_poster, name="tv-poster"),
     # Anime (served by the tvshow app)
+    path("v1/anime/diff", tv_views.AnimeDiffView.as_view(), name="anime-diff"),
     path(
-        "anime/bangumi/diff",
-        tv_views.BangumiDiffView.as_view(),
-        name="anime-bangumi-diff",
+        "v1/anime/local-gaps",
+        tv_views.AnimeLocalGapsView.as_view(),
+        name="anime-local-gaps",
     ),
     path(
-        "anime/local/season/missing",
-        tv_views.AnimeSeasonMissingView.as_view(),
-        name="anime-season-missing",
-    ),
-    path(
-        "anime/local/episode/missing",
-        tv_views.AnimeEpisodeMissingView.as_view(),
-        name="anime-episode-missing",
-    ),
-    path(
-        "anime/poster/<path:image_path>",
+        "v1/anime/poster/<path:image_path>",
         tv_views.anime_poster,
         name="anime-poster",
     ),
-    # Album
+    # Albums
+    path("v1/albums/diff", music_views.DiffView.as_view(), name="albums-diff"),
     path(
-        "album/douban250/diff",
-        music_views.DoubanDiffView.as_view(),
-        name="album-douban250-diff",
+        "v1/albums/cover/<path:image_path>",
+        music_views.cover,
+        name="albums-cover",
     ),
-    path("album/cover/<path:image_path>", music_views.cover, name="album-cover"),
-    # Book
+    # Books
+    path("v1/books/diff", book_views.DiffView.as_view(), name="books-diff"),
     path(
-        "book/douban250/diff",
-        book_views.DoubanDiffView.as_view(),
-        name="book-douban250-diff",
+        "v1/books/cover/<path:image_path>",
+        book_views.cover,
+        name="books-cover",
     ),
-    path("book/cover/<path:image_path>", book_views.cover, name="book-cover"),
+    # OpenAPI schema + Swagger UI
+    path("v1/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "v1/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="docs",
+    ),
 ]

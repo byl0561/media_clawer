@@ -34,6 +34,8 @@ BOOK_ROOT: str = MEDIA_ROOTS["book"]
 # hung upstream would block a worker thread forever.
 HTTP_TIMEOUT = settings.HTTP_REQUEST_TIMEOUT
 SCAN_WORKERS: int = settings.SCAN_WORKER_COUNT
+# Bounded retry budget for TMDB rate-limit (429) / transient errors.
+TMDB_MAX_RETRIES: int = settings.TMDB_MAX_RETRIES
 
 # Raw upstream responses (HTML / TMDB JSON) cache TTL. The computed diff is
 # recomputed per request and is intentionally not cached.

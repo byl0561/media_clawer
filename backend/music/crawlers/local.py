@@ -27,12 +27,12 @@ def process_dir(path: str):
     alias = []
     if os.path.exists(os.path.join(root, d, "alias.txt")):
         with open(os.path.join(root, d, "alias.txt"), "r") as f:
-            alias = f.readlines()
+            alias = f.read().splitlines()
 
     poster = None
     cover_files = glob.glob(os.path.join(glob.escape(path), "cover.*"))
     if len(cover_files) > 0:
-        poster = "/album/cover/" + cover_files[0].replace(conf.MUSIC_ROOT, "")
+        poster = "/v1/albums/cover/" + cover_files[0].replace(conf.MUSIC_ROOT, "")
 
     return LocalAlbum(title, alias, artist, year, poster)
 

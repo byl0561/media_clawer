@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
     "django_crontab",
     "movie.apps.MovieConfig",
     "tvshow.apps.TvshowConfig",
@@ -101,6 +102,15 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "UNAUTHENTICATED_USER": None,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Media Crawler API",
+    "DESCRIPTION": "Compare ranking lists (Douban / Bangumi) against the "
+    "local NAS libraries.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 # --- Crawler / diff pipeline configuration (consumed via core.conf) ------
@@ -125,6 +135,9 @@ MEDIA_LIBRARY_ROOTS = {
 # (connect, read) seconds — bounds every outbound scrape/API call.
 HTTP_REQUEST_TIMEOUT = (5, _env_int("HTTP_READ_TIMEOUT", 30))
 SCAN_WORKER_COUNT = _env_int("SCAN_WORKERS", min(8, (os.cpu_count() or 4)))
+# Extra attempts (on top of the first) for rate-limited / transient TMDB
+# responses; only the TMDB crawlers opt into retry.
+TMDB_MAX_RETRIES = _env_int("TMDB_MAX_RETRIES", 3)
 # Upstream Douban/TMDB responses are cached this long; cron pre-warms them.
 # The computed diff itself is NOT cached — it is recomputed on every request.
 # 8 days (> the weekly cron interval) so the upstream cache never expires

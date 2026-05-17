@@ -45,14 +45,14 @@ def process_file(path: str):
     if len(cover_files) > 0:
         poster = cover_files[0]
         if poster.startswith(conf.TV_ROOT):
-            poster = "/tv/poster/" + poster.replace(conf.TV_ROOT, "")
+            poster = "/v1/tv-shows/poster/" + poster.replace(conf.TV_ROOT, "")
         elif poster.startswith(conf.ANIME_ROOT):
-            poster = "/anime/poster/" + poster.replace(conf.ANIME_ROOT, "")
+            poster = "/v1/anime/poster/" + poster.replace(conf.ANIME_ROOT, "")
 
     alias = []
     if os.path.exists(os.path.join(root, "alias.txt")):
         with open(os.path.join(root, "alias.txt"), "r") as f:
-            alias = f.readlines()
+            alias = f.read().splitlines()
 
     num_2_season_name = {}
     for child in root_element:
