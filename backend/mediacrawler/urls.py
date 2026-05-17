@@ -1,39 +1,80 @@
-"""
-URL configuration for mediacrawler project.
+"""URL routing for the mediacrawler project.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/4.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+Paths and response shapes are intentionally identical to the pre-refactor API
+so the existing Vue frontend keeps working unchanged. Cross-app path scheme
+(``anime/*`` is served by the ``tvshow`` app against the anime library) is
+preserved, so routing is kept centralised here rather than per-app.
 """
 from django.urls import path
-import movie.views as movie_views
-import tvshow.views as tv_views
-import music.views as music_views
-import book.views as book_views
+
+from book import views as book_views
+from movie import views as movie_views
+from music import views as music_views
+from tvshow import views as tv_views
 
 urlpatterns = [
-    path('movie/douban250/diff', movie_views.diff_douban_250),
-    path('movie/local/collection/complete', movie_views.complete_local_movie_collection),
-    path('movie/poster/<path:image_path>', movie_views.get_poster),
-    path('tv/douban100/diff', tv_views.diff_douban_tv_show_100),
-    path('tv/local/season/missing', tv_views.find_lost_tv_local_season),
-    path('tv/local/episode/missing', tv_views.find_lost_tv_local_episode),
-    path('tv/poster/<path:image_path>', tv_views.get_tv_poster),
-    path('anime/bangumi/diff', tv_views.diff_bangumi_tv_anime_100),
-    path('anime/local/season/missing', tv_views.find_lost_anime_local_season),
-    path('anime/local/episode/missing', tv_views.find_lost_anime_local_episode),
-    path('anime/poster/<path:image_path>', tv_views.get_anime_poster),
-    path('album/douban250/diff', music_views.diff_douban_250),
-    path('album/cover/<path:image_path>', music_views.get_cover),
-    path('book/douban250/diff', book_views.diff_douban_250),
-    path('book/cover/<path:image_path>', book_views.get_cover),
+    # Movie
+    path(
+        "movie/douban250/diff",
+        movie_views.DoubanDiffView.as_view(),
+        name="movie-douban250-diff",
+    ),
+    path(
+        "movie/local/collection/complete",
+        movie_views.CollectionCompleteView.as_view(),
+        name="movie-collection-complete",
+    ),
+    path("movie/poster/<path:image_path>", movie_views.poster, name="movie-poster"),
+    # TV
+    path(
+        "tv/douban100/diff",
+        tv_views.DoubanDiffView.as_view(),
+        name="tv-douban100-diff",
+    ),
+    path(
+        "tv/local/season/missing",
+        tv_views.TvSeasonMissingView.as_view(),
+        name="tv-season-missing",
+    ),
+    path(
+        "tv/local/episode/missing",
+        tv_views.TvEpisodeMissingView.as_view(),
+        name="tv-episode-missing",
+    ),
+    path("tv/poster/<path:image_path>", tv_views.tv_poster, name="tv-poster"),
+    # Anime (served by the tvshow app)
+    path(
+        "anime/bangumi/diff",
+        tv_views.BangumiDiffView.as_view(),
+        name="anime-bangumi-diff",
+    ),
+    path(
+        "anime/local/season/missing",
+        tv_views.AnimeSeasonMissingView.as_view(),
+        name="anime-season-missing",
+    ),
+    path(
+        "anime/local/episode/missing",
+        tv_views.AnimeEpisodeMissingView.as_view(),
+        name="anime-episode-missing",
+    ),
+    path(
+        "anime/poster/<path:image_path>",
+        tv_views.anime_poster,
+        name="anime-poster",
+    ),
+    # Album
+    path(
+        "album/douban250/diff",
+        music_views.DoubanDiffView.as_view(),
+        name="album-douban250-diff",
+    ),
+    path("album/cover/<path:image_path>", music_views.cover, name="album-cover"),
+    # Book
+    path(
+        "book/douban250/diff",
+        book_views.DoubanDiffView.as_view(),
+        name="book-douban250-diff",
+    ),
+    path("book/cover/<path:image_path>", book_views.cover, name="book-cover"),
 ]

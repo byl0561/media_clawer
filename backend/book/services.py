@@ -1,0 +1,37 @@
+"""Book diff use-case (logic moved out of the old ``book.views``).
+
+Recomputed every request; only the upstream Douban response stays cached
+(via :mod:`core.http`), kept warm by cron. ``_is_retained_book`` is kept as
+the original unconditional ``True`` (so ``extra_books`` stays empty) to
+preserve the response contract exactly.
+"""
+from core import conf
+from book.crawlers.douban import crawl_douban_250
+from book.crawlers.local import crawl_local
+from book.matching import get_missing_books
+from book.models import Book
+from book.serializers import BookSerializer
+
+
+def _is_retained_book(book: Book) -> bool:
+    return True
+
+
+def _serialize(books) -> list:
+    return BookSerializer(books, many=True).data
+
+
+def douban250_diff() -> dict:
+    douban_books = crawl_douban_250()
+    local_books = crawl_local(conf.BOOK_ROOT)
+    missing_books = get_missing_books(douban_books, local_books)
+    extra_books = get_missing_books(local_books, douban_books)
+    return {
+        "missing_books": _serialize(missing_books),
+        "extra_books": _serialize([b for b in extra_books if not _is_retained_book(b)]),
+    }
+
+
+def refresh_all() -> None:
+    """Repopulate the upstream Douban cache (used by cron)."""
+    crawl_douban_250(cache=False)
