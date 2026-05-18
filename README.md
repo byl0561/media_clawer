@@ -14,7 +14,7 @@
 - **过时**：本地有、已跌出榜单且评分不再突出的，建议清理
 - **续集/缺集**：本地已有的系列/剧集，TMDB 上存在尚未收录的续作、季或集
 
-结果以海报墙呈现，点击跳转豆瓣 / TMDB / Bangumi 详情页。
+网页提供「库维护概览」首页，点击某类媒体进入海报网格查看明细；卡片可跳转豆瓣 / TMDB / Bangumi 详情页。
 
 ## 整体架构
 
@@ -33,7 +33,7 @@
                          └─────────────────────────────────────────────┘
 ```
 
-整个应用打包为**单个 Docker 镜像**。Nginx 托管前端静态资源，并把 `/api/` 反向代理到 gunicorn 上的 Django（代理时剥离 `/api/` 前缀，故 Django 实际匹配 `v1/...`）。
+整个应用打包为**单个 Docker 镜像**。Nginx 托管前端静态资源，并把 `/api/` 反向代理到 gunicorn 上的 Django（代理时剥离 `/api/` 前缀，故 Django 实际匹配 `v1/...`）。Nginx 启用 SPA history 回退（`try_files … /index.html`），并把 `/api/` 反代超时对齐到 300s（与 gunicorn `--timeout`、前端 axios 一致）。
 
 ### 后端（`backend/`，Django 4.2 + DRF / Python 3.9）
 
@@ -50,9 +50,11 @@
 - 上游抓取整体失败（列表为空）时返回 **HTTP 503**，而非把整库误判为「过时」。
 - 因此榜单数据最长约有一周滞后——这是「请求不阻塞」的取舍。
 
-### 前端（`frontend/`，Vue 3 + TypeScript + Vite）
+### 前端（`frontend/`，Vue 3 + TypeScript + Vite + Tailwind）
 
-单页应用，无路由。每类媒体一个组合式 hook，调用对应 API 并归一化为 `MediaItem`，用 Swiper 渲染海报墙。每个 diff 每次加载**只请求一次**，由「最新 / 过时」两个标签页复用同一响应。
+- **路由**（vue-router，history 模式）：`/` 为库维护概览（各媒体类型汇总卡，显示缺口计数）；`/library/:type` 为该类型的分段标签（最新 / 续集 / 过时，带计数）+ 响应式海报网格。桌面与移动端自适应。
+- **状态**：`stores/mediaCatalog` 单例复用各媒体 hook 的记忆化加载，概览页与详情页共享同一请求；点「刷新」统一失效重拉。
+- 暗色靛紫设计令牌（Tailwind），骨架 / 空 / 错误态；每个 diff 每次加载只请求一次，由相关标签页复用同一响应。
 
 ## API 接口
 
@@ -158,7 +160,7 @@ npm run build     # 生产构建（含 type-check），产物在 dist/
 ## 技术栈
 
 - **后端**：Django 4.2、Django REST Framework、drf-spectacular、Python 3.9、requests、BeautifulSoup4 / lxml、django-redis、django-crontab、gunicorn
-- **前端**：Vue 3、TypeScript、Vite、axios、Swiper
+- **前端**：Vue 3、TypeScript、Vite、vue-router、Tailwind CSS、axios
 - **部署**：多阶段 Docker（Node 18 构建前端 + python:3.9-slim 运行）、Nginx、gunicorn、Redis
 
 ## License
