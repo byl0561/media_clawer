@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import Header from "@/components/Header.vue";
-import Footer from "@/components/Footer.vue";
-import MediaContainer from "@/components/MediaContainer.vue";
+import AppBar from "@/components/AppBar.vue";
+import AppFooter from "@/components/AppFooter.vue";
 </script>
 
 <template>
-  <Header/>
-  <MediaContainer/>
-  <Footer/>
+  <div class="flex min-h-screen flex-col">
+    <AppBar />
+    <main class="flex-1">
+      <RouterView />
+    </main>
+    <AppFooter />
+  </div>
 </template>

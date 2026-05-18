@@ -1,12 +1,14 @@
+/** UI-facing view models (server shapes live in `@/types/api`). */
+
 export interface MediaItem {
     title: string;
-    img: string;
-    score: number;
-    link: string;
+    img: string | null;
+    score: number | null;
+    link: string | null;
 }
 
 export interface MediaItemGroupData {
-    valid: boolean,
+    valid: boolean;
     mediaItems: MediaItem[];
 }
 
