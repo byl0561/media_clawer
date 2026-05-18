@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import {onMounted, ref, watch} from "vue";
 import type {CatalogEntry} from "@/stores/mediaCatalog";
-import {useMediaCatalog} from "@/stores/mediaCatalog";
 
 const props = defineProps<{ entry: CatalogEntry }>()
-const {version} = useMediaCatalog()
 
 interface Count {
   name: string;
@@ -33,7 +31,9 @@ async function load(): Promise<void> {
 }
 
 onMounted(load)
-watch(version, load)
+// refresh() swaps every entry for a fresh object (new memoized loaders);
+// react to that identity change so the card actually re-fetches.
+watch(() => props.entry, load)
 </script>
 
 <template>
