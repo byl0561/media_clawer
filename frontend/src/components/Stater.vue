@@ -1,11 +1,11 @@
 <script setup lang="ts">
-const {state} = defineProps<{state:boolean}>()
+const props = defineProps<{ state: boolean }>()
 </script>
 
 <template>
   <div id="preloader">
     <div id="status">
-        <img v-if="state" src="/images/success.png" alt="success"/>
+        <img v-if="props.state" src="/images/success.png" alt="success"/>
         <img v-else src="/images/fail.png" alt="fail"/>
     </div>
   </div>

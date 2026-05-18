@@ -1,41 +1,16 @@
-import type {MediaGroup, MediaItemGroupData} from "@/types";
+import type {MediaGroup} from "@/types";
 import {diffTV, tvLocalGaps} from "@/http/api";
-import {buildGroup, once, toMedia} from "@/hooks/diffHelper";
+import {buildGroup, buildLocalGapGroup, once} from "@/hooks/diffHelper";
 
-export default function () {
+export default function useTV(): MediaGroup {
     const loadDiff = once(diffTV);
 
-    const getLostTV = () => buildGroup(loadDiff, (d) => d.missing);
-    const getOutdatedTV = () => buildGroup(loadDiff, (d) => d.extra);
-
-    async function getContinuedTV(): Promise<MediaItemGroupData> {
-        const group: MediaItemGroupData = {valid: true, mediaItems: []};
-        const res = await tvLocalGaps();
-        if (!res.success) {
-            group.valid = false;
-            return group;
-        }
-        if (res.data == null) return group;
-        for (const entry of res.data) {
-            const seasons = new Set<number>();
-            for (const s of entry.missing_seasons) seasons.add(s.num);
-            for (const s of entry.incomplete_seasons) seasons.add(s.season_num);
-            const sorted = Array.from(seasons).sort((a, b) => a - b);
-            const media = toMedia(entry.show);
-            media.title = `${media.title} - ${sorted.map((n) => `S${n}`).join(",")}`;
-            group.mediaItems.push(media);
-        }
-        return group;
-    }
-
-    const tv: MediaGroup = {
+    return {
         name: "电视剧",
         mediaItemFunctionGroups: [
-            {name: "最新", acquireData: getLostTV},
-            {name: "续集", acquireData: getContinuedTV},
-            {name: "过时", acquireData: getOutdatedTV},
+            {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing)},
+            {name: "续集", acquireData: () => buildLocalGapGroup(tvLocalGaps)},
+            {name: "过时", acquireData: () => buildGroup(loadDiff, (d) => d.extra)},
         ],
     };
-
-    return {tv};
 }

@@ -2,13 +2,10 @@ import type {MediaGroup, MediaItemGroupData} from "@/types";
 import {diffMovie, movieCollectionGaps} from "@/http/api";
 import {buildGroup, once, toMedia} from "@/hooks/diffHelper";
 
-export default function () {
+export default function useMovie(): MediaGroup {
     const loadDiff = once(diffMovie);
 
-    const getLostMovie = () => buildGroup(loadDiff, (d) => d.missing);
-    const getOutdatedMovie = () => buildGroup(loadDiff, (d) => d.extra);
-
-    async function getContinuedMovie(): Promise<MediaItemGroupData> {
+    async function getContinued(): Promise<MediaItemGroupData> {
         const group: MediaItemGroupData = {valid: true, mediaItems: []};
         const res = await movieCollectionGaps();
         if (!res.success) {
@@ -16,24 +13,22 @@ export default function () {
             return group;
         }
         if (res.data == null) return group;
-        for (const entry of res.data) {
-            for (const item of entry.missing) {
+        for (const gap of res.data) {
+            for (const item of gap.missing) {
                 const media = toMedia(item);
-                media.title = `[${entry.collection}] ${media.title}`;
+                media.title = `[${gap.collection}] ${media.title}`;
                 group.mediaItems.push(media);
             }
         }
         return group;
     }
 
-    const movie: MediaGroup = {
+    return {
         name: "电影",
         mediaItemFunctionGroups: [
-            {name: "最新", acquireData: getLostMovie},
-            {name: "续集", acquireData: getContinuedMovie},
-            {name: "过时", acquireData: getOutdatedMovie},
+            {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing)},
+            {name: "续集", acquireData: getContinued},
+            {name: "过时", acquireData: () => buildGroup(loadDiff, (d) => d.extra)},
         ],
     };
-
-    return {movie};
 }

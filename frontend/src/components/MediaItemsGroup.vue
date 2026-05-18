@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type {MediaGroup, MediaItemGroupData} from "@/types";
+import type {MediaGroup, MediaItemFunctionGroup, MediaItemGroupData} from "@/types";
 import {onMounted, ref} from "vue";
 import {Swiper, SwiperSlide} from 'swiper/vue'
 import {Pagination} from 'swiper/modules'
@@ -8,76 +8,62 @@ import 'swiper/css/pagination'
 import Loader from "@/components/Loader.vue";
 import Stater from "@/components/Stater.vue";
 
-const {mediaGroup} = defineProps<{mediaGroup:MediaGroup}>()
-let loading = ref<boolean>(false);
-let activeIndex = ref<Number>(0)
-let successEmpty = ref<boolean>(false);
-let activeData = ref<MediaItemGroupData>({
-  valid: false,
-  mediaItems: [],
-})
+const props = defineProps<{ mediaGroup: MediaGroup }>()
 
-const swiperBreakpoint:any = {}
+// Local copy: the empty-tab skipping below must not mutate the prop.
+const tabs = ref<MediaItemFunctionGroup[]>([...props.mediaGroup.mediaItemFunctionGroups])
+const activeIndex = ref(0)
+const loading = ref(false)
+const successEmpty = ref(false)
+const activeData = ref<MediaItemGroupData>({valid: false, mediaItems: []})
+
+const swiperBreakpoints: Record<number, { slidesPerView: number; slidesPerGroup: number }> = {}
 for (let i = 0; i < 20; i++) {
-  swiperBreakpoint[i * 384] = {
-    slidesPerView: i + 1,
-    slidesPerGroup: i + 1,
-  }
+  swiperBreakpoints[i * 384] = {slidesPerView: i + 1, slidesPerGroup: i + 1}
 }
 
-async function onActive(index: number) {
-  activeIndex.value = index
-  loading.value = true
-  try {
-    activeData.value = await mediaGroup.mediaItemFunctionGroups[index].acquireData();
-  } catch (error) {
-    activeData.value = {
-      valid: false,
-      mediaItems: [],
-    };
-  } finally {
-    loading.value = false;
-  }
-}
-
-function getImgUrl(url: string | null): string {
-  if (url == null)
-    return "/images/404.png"
-
-  if (url.startsWith('/api')) {
-    return url;
-  }
-  if (url.startsWith('/')) {
-    return `/api${url}`
-  }
-
+function imageUrl(url: string | null): string {
+  if (url == null) return "/images/404.png"
+  if (url.startsWith('/api')) return url
+  if (url.startsWith('/')) return `/api${url}`
   return `https://images.weserv.nl/?url=${url}`
 }
 
+async function onActive(index: number): Promise<void> {
+  activeIndex.value = index
+  loading.value = true
+  try {
+    activeData.value = await tabs.value[index].acquireData()
+  } catch {
+    activeData.value = {valid: false, mediaItems: []}
+  } finally {
+    loading.value = false
+  }
+}
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 onMounted(async () => {
-  for (let i = 0; i < mediaGroup.mediaItemFunctionGroups.length; i++) {
+  // Show the first tab that errors or has items; silently drop leading
+  // tabs that succeed but are empty (nothing to maintain there).
+  while (tabs.value.length > 0) {
     await onActive(0)
-    if (!activeData.value.valid || activeData.value.mediaItems.length > 0) {
-      break
-    }
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    mediaGroup.mediaItemFunctionGroups.splice(i, 1);
-    i--
+    if (!activeData.value.valid || activeData.value.mediaItems.length > 0) return
+    await delay(1000)
+    tabs.value.splice(0, 1)
   }
-  if (mediaGroup.mediaItemFunctionGroups.length == 0) {
-    successEmpty.value = true;
-  }
+  successEmpty.value = true
 })
 </script>
 
 <template>
   <div class="title-hd">
-    <h2>{{mediaGroup.name}}</h2>
+    <h2>{{ props.mediaGroup.name }}</h2>
   </div>
   <div class="tabs">
     <ul class="tab-links" v-show="!successEmpty">
-      <li v-for="(itemGroup, index) in mediaGroup.mediaItemFunctionGroups" :key="itemGroup.name"
-          :class="{active: activeIndex === index}"><a href="javascript:void(0)" @click="onActive(index)">{{itemGroup.name}}</a></li>
+      <li v-for="(tab, index) in tabs" :key="tab.name"
+          :class="{active: activeIndex === index}"><a href="#" @click.prevent="onActive(index)">{{ tab.name }}</a></li>
     </ul>
     <div class="tab-content">
       <div class="tab">
@@ -97,7 +83,7 @@ onMounted(async () => {
           <template v-else>
             <swiper
               :modules = "[Pagination]"
-              :breakpoints="swiperBreakpoint"
+              :breakpoints="swiperBreakpoints"
               :space-between="20"
               :pagination="{
                 el: '.swiper-pagination',
@@ -109,11 +95,11 @@ onMounted(async () => {
             <swiper-slide v-for="(mediaItem, index) in activeData.mediaItems" :key="index">
               <div class="movie-item">
                 <div class="mv-img">
-                  <img :src="getImgUrl(mediaItem.img)" alt="" />
+                  <img :src="imageUrl(mediaItem.img)" :alt="mediaItem.title" />
                 </div>
                 <div class="title-in">
-                  <h6><a :href="mediaItem.link == null ? '#' : mediaItem.link" target="_blank">{{mediaItem.title}}</a></h6>
-                  <p v-show="mediaItem.score"><i class="ion-android-star"></i><span>{{mediaItem.score}}</span> /10</p>
+                  <h6><a :href="mediaItem.link == null ? '#' : mediaItem.link" target="_blank">{{ mediaItem.title }}</a></h6>
+                  <p v-show="mediaItem.score"><i class="ion-android-star"></i><span>{{ mediaItem.score }}</span> /10</p>
                 </div>
               </div>
             </swiper-slide>

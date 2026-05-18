@@ -1,30 +1,30 @@
 import type {MediaItem, MediaItemGroupData} from "@/types";
-import type {ResponseWrapper} from "@/http/httpInstance";
+import type {ApiResult} from "@/http/client";
+import type {LocalGap, MediaItemDTO} from "@/types/api";
 
-export type Loader = () => Promise<ResponseWrapper>;
+export type Loader<T> = () => Promise<ApiResult<T>>;
 
 /** Map a server media object to the UI's MediaItem shape. */
-export function toMedia(m: any): MediaItem {
-    return {title: m.title, img: m.poster, score: m.score, link: m.link};
+export function toMedia(item: MediaItemDTO): MediaItem {
+    return {title: item.title, img: item.poster, score: item.score, link: item.link};
 }
 
 /**
- * Wrap a request so the underlying call runs at most once per page load.
- * The diff endpoints recompute server-side on every call, so the "missing"
- * and "extra" tabs must share a single response instead of fetching twice.
+ * Wrap a request so it runs at most once per page load. The diff endpoints
+ * recompute server-side on every call, so the "missing" and "extra" tabs
+ * must share a single response instead of fetching twice.
  */
-export function once(load: Loader): Loader {
-    let cached: Promise<ResponseWrapper> | null = null;
+export function once<T>(load: Loader<T>): Loader<T> {
+    let cached: Promise<ApiResult<T>> | null = null;
     return () => {
         if (!cached) cached = load();
         return cached;
     };
 }
 
-/** Build a tab's data by mapping `pick(data)` through {@link toMedia}. */
-export async function buildGroup(
-    load: Loader,
-    pick: (data: any) => any[],
+async function collect<T>(
+    load: Loader<T>,
+    fill: (data: T, items: MediaItem[]) => void,
 ): Promise<MediaItemGroupData> {
     const group: MediaItemGroupData = {valid: true, mediaItems: []};
     const res = await load();
@@ -33,6 +33,33 @@ export async function buildGroup(
         return group;
     }
     if (res.data == null) return group;
-    for (const item of pick(res.data)) group.mediaItems.push(toMedia(item));
+    fill(res.data, group.mediaItems);
     return group;
+}
+
+/** Build a tab from a diff-style payload by mapping `pick(data)`. */
+export function buildGroup<T>(
+    load: Loader<T>,
+    pick: (data: T) => MediaItemDTO[],
+): Promise<MediaItemGroupData> {
+    return collect(load, (data, items) => {
+        for (const item of pick(data)) items.push(toMedia(item));
+    });
+}
+
+/** Build the "续集" tab from a `local-gaps` payload (shared by tv & anime). */
+export function buildLocalGapGroup(
+    load: Loader<LocalGap[]>,
+): Promise<MediaItemGroupData> {
+    return collect(load, (gaps, items) => {
+        for (const gap of gaps) {
+            const seasons = new Set<number>();
+            for (const s of gap.missing_seasons) seasons.add(s.num);
+            for (const s of gap.incomplete_seasons) seasons.add(s.season_num);
+            const sorted = [...seasons].sort((a, b) => a - b);
+            const media = toMedia(gap.show);
+            media.title = `${media.title} - ${sorted.map((n) => `S${n}`).join(",")}`;
+            items.push(media);
+        }
+    });
 }
