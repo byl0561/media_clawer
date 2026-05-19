@@ -17,6 +17,32 @@
     @apply bg-bg text-content font-sans antialiased;
   }
 
+  /* Ambient depth so large dark areas don't read as flat:
+     (A) a faint accent glow anchored at the top of the viewport, and
+     (C) a fine grain that also kills banding in the dark gradients.
+     Both live on a fixed layer behind the app (z-index: -1) — painted
+     above the solid body colour but under content — so they never
+     scroll, jank, or intercept clicks. */
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  body::before {
+    background: radial-gradient(
+      1100px 600px at 50% -8%,
+      rgba(139, 124, 246, 0.07),
+      transparent 60%
+    );
+  }
+  body::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+  }
+
   a {
     color: inherit;
     text-decoration: none;
