@@ -11,11 +11,15 @@ printenv > /etc/environment
 # APP_PASSWORD here. Empty APP_PASSWORD => empty include => auth disabled
 # (handy for local/dev). {SHA} is an nginx-supported scheme so we need no
 # extra apt package (apache2-utils/openssl) just to hash one password.
+# Always leave a valid (possibly empty) auth.conf so nginx config parsing
+# can never fail on the include; only enable auth if the hash step succeeds.
+: > /etc/nginx/auth.conf
 if [ -n "$APP_PASSWORD" ]; then
-  python -c "import base64,hashlib,os;u=os.environ.get('APP_USERNAME') or 'admin';p=os.environ['APP_PASSWORD'];open('/etc/nginx/.htpasswd','w').write(u+':{SHA}'+base64.b64encode(hashlib.sha1(p.encode()).digest()).decode()+'\n')"
-  printf 'auth_basic "MediaGap";\nauth_basic_user_file /etc/nginx/.htpasswd;\n' > /etc/nginx/auth.conf
-else
-  : > /etc/nginx/auth.conf
+  if python -c "import base64,hashlib,os;u=os.environ.get('APP_USERNAME') or 'admin';p=os.environ['APP_PASSWORD'];open('/etc/nginx/.htpasswd','w').write(u+':{SHA}'+base64.b64encode(hashlib.sha1(p.encode()).digest()).decode()+'\n')"; then
+    printf 'auth_basic "MediaGap";\nauth_basic_user_file /etc/nginx/.htpasswd;\n' > /etc/nginx/auth.conf
+  else
+    echo "entrypoint: htpasswd generation failed; Basic Auth DISABLED" >&2
+  fi
 fi
 
 cron

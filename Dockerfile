@@ -14,6 +14,10 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=frontend-build /app/dist /usr/share/nginx/html
 COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
+# Safe default so nginx starts even if the entrypoint is bypassed (e.g. an
+# overridden container command): empty == auth disabled. The entrypoint
+# overwrites this from APP_USERNAME / APP_PASSWORD at start.
+RUN touch /etc/nginx/auth.conf
 RUN mkdir -p /Volumes/Movie /Volumes/TV /Volumes/Anime /Volumes/Music /Volumes/Book
 WORKDIR /app
 COPY backend/ .
