@@ -14,3 +14,16 @@ class UpstreamUnavailable(APIException):
     status_code = 503
     default_detail = "上游榜单数据暂不可用，请稍后重试。"
     default_code = "upstream_unavailable"
+
+
+class ShowNotFound(APIException):
+    """No local ``tvshow.nfo`` has a tmdb ``uniqueid`` matching the request.
+
+    The ignore endpoints locate the show on disk by its TMDB id; a mismatch
+    means the library moved/renamed or the id is stale, which is a 404 rather
+    than a server error.
+    """
+
+    status_code = 404
+    default_detail = "未在本地库中找到该剧集（tvshow.nfo 的 tmdb id 不匹配）。"
+    default_code = "show_not_found"

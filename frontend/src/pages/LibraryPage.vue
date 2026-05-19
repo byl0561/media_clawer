@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed, onMounted, ref, watch} from "vue";
 import {useRoute} from "vue-router";
-import type {MediaItemGroupData} from "@/types";
+import type {MediaItem, MediaItemGroupData} from "@/types";
 import {useMediaCatalog} from "@/stores/mediaCatalog";
 import SegmentedTabs from "@/components/SegmentedTabs.vue";
 import PosterGrid from "@/components/PosterGrid.vue";
@@ -82,6 +82,14 @@ function retry(): void {
   catalog.track(loadAll())
 }
 
+// Drop a card the user fully ignored, without waiting for the next rescan.
+function onIgnored(item: MediaItem): void {
+  const data = activeState.value?.data
+  if (!data) return
+  const idx = data.mediaItems.indexOf(item)
+  if (idx !== -1) data.mediaItems.splice(idx, 1)
+}
+
 onMounted(() => catalog.track(loadAll()))
 watch(key, () => catalog.track(loadAll()))
 watch(catalog.version, () => catalog.track(loadAll()))
@@ -111,7 +119,11 @@ watch(catalog.version, () => catalog.track(loadAll()))
         @retry="retry"
       />
       <EmptyState v-else-if="activeState.data!.mediaItems.length === 0" />
-      <PosterGrid v-else :items="activeState.data!.mediaItems" />
+      <PosterGrid
+        v-else
+        :items="activeState.data!.mediaItems"
+        @ignored="onIgnored"
+      />
     </template>
 
     <div v-else class="py-24 text-center text-muted">

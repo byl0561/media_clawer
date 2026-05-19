@@ -9,13 +9,16 @@ served by this app against the anime library root.
 one local scan + one ``get_tmdb_tv_show`` per show (instead of two passes),
 returning both whole-missing seasons and behind-on-episodes seasons.
 """
+import os
+import xml.etree.ElementTree as ET
 from datetime import datetime
+from typing import Optional, Tuple
 
 from core import conf
-from core.exceptions import UpstreamUnavailable
+from core.exceptions import ShowNotFound, UpstreamUnavailable
 from tvshow.crawlers.bangumi import crawl_bangumi_tv_show_80
 from tvshow.crawlers.douban import crawl_dou_list
-from tvshow.crawlers.local import crawl_local
+from tvshow.crawlers.local import crawl_local, process_file
 from tvshow.crawlers.tmdb import get_tmdb_tv_show, get_tmdb_tv_show_season
 from tvshow.matching import combine_tv_show, get_missing_tv_shows
 from tvshow.models import TvShow
@@ -147,3 +150,136 @@ def refresh_all() -> None:
     crawl_bangumi_tv_show_80(cache=False)
     _flush_tmdb(conf.TV_ROOT)
     _flush_tmdb(conf.ANIME_ROOT)
+
+
+# --- Ignore (skip-marker) management ------------------------------------
+# A ``Season N/checked_episode.txt`` holding one integer suppresses that
+# season (shadow season) and every episode <= the integer from the gaps.
+# These endpoints let the UI write that marker per season on demand.
+
+_SEASON_CHECK_FILE = "checked_episode.txt"
+
+
+def _season_folder_name(season_num: int) -> str:
+    """tinyMediaManager layout the local scanner parses back (no zero pad)."""
+    return "Specials" if season_num == 0 else f"Season {season_num}"
+
+
+def _find_show_dir(root: str, tmdb_id: int) -> Optional[str]:
+    """Directory of the ``tvshow.nfo`` whose tmdb ``uniqueid`` == ``tmdb_id``."""
+    base = os.path.realpath(root)
+    if not os.path.isdir(base):
+        return None
+    for current, _dirs, files in os.walk(base):
+        if "tvshow.nfo" not in files:
+            continue
+        try:
+            tree = ET.parse(os.path.join(current, "tvshow.nfo"))
+            node = tree.getroot().find("./uniqueid[@type='tmdb']")
+            if node is not None and node.text and int(node.text) == tmdb_id:
+                return current
+        except (ET.ParseError, ValueError, TypeError):
+            continue
+    return None
+
+
+def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
+    """Locate the show and list its still-missing seasons + episode choices.
+
+    Returns ``(show_dir, title, seasons)``; ``show_dir`` is ``None`` when no
+    local ``tvshow.nfo`` matches ``tmdb_id``. The offered episodes mirror the
+    gap rules in :func:`local_gaps` exactly — only TMDB ``_legal_episode``s
+    beyond what is already present or already checked — so selecting a
+    season's latest offered episode precisely closes that season's gap.
+    """
+    root = _LIBRARY_ROOT[library]
+    show_dir = _find_show_dir(root, tmdb_id)
+    if show_dir is None:
+        return None, "", []
+
+    try:
+        local_tv_show = process_file(os.path.join(show_dir, "tvshow.nfo"))
+    except (ET.ParseError, ValueError, TypeError, AttributeError):
+        local_tv_show = None
+    tmdb_tv_show = get_tmdb_tv_show(tmdb_id)
+    if local_tv_show is None or tmdb_tv_show is None:
+        return show_dir, "", []
+
+    season_max = local_tv_show.map_season_max_episode()
+    candidates = set(season_max)
+    for tmdb_season in tmdb_tv_show.list_seasons():
+        if local_tv_show.get_season(tmdb_season.num) is None and _legal_season(
+            tmdb_season
+        ):
+            candidates.add(tmdb_season.num)
+
+    seasons = []
+    for num in sorted(candidates):
+        tmdb_season = get_tmdb_tv_show_season(tmdb_id, num)
+        if tmdb_season is None:
+            continue
+        local_max = season_max.get(num, 0)
+        missing = [
+            e
+            for e in tmdb_season.list_episodes()
+            if e.num > local_max and _legal_episode(e)
+        ]
+        if not missing:
+            continue
+        seasons.append(
+            {
+                "season_num": num,
+                "season_name": tmdb_season.name,
+                "local_max_episode": local_max,
+                "latest_episode": max(e.num for e in missing),
+                "episodes": [
+                    {"num": e.num, "name": e.name, "date": e.get_date() or None}
+                    for e in missing
+                ],
+            }
+        )
+    return show_dir, tmdb_tv_show.get_titles()[0], seasons
+
+
+def ignore_options(library: str, tmdb_id: int) -> dict:
+    """Seasons/episodes the user may choose to ignore (opened on demand)."""
+    show_dir, title, seasons = _gap_seasons(library, tmdb_id)
+    if show_dir is None:
+        raise ShowNotFound()
+    return {"title": title, "seasons": seasons}
+
+
+def ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
+    """Write ``checked_episode.txt`` for each selected season.
+
+    ``selections`` is ``[{"season_num": int, "episode": int}, ...]``. The
+    season folder is created when absent and the marker overwritten when
+    present (both states handled). ``fully_ignored`` is true iff every
+    still-missing season was selected at/beyond its latest offered episode —
+    the frontend uses it to close the poster without waiting for a rescan.
+    """
+    root = _LIBRARY_ROOT[library]
+    show_dir, _title, gap_seasons = _gap_seasons(library, tmdb_id)
+    if show_dir is None:
+        raise ShowNotFound()
+
+    chosen = {int(s["season_num"]): int(s["episode"]) for s in selections}
+    fully_ignored = bool(gap_seasons) and all(
+        g["season_num"] in chosen and chosen[g["season_num"]] >= g["latest_episode"]
+        for g in gap_seasons
+    )
+
+    base = os.path.realpath(root)
+    for season_num, episode in chosen.items():
+        if episode < 0:
+            continue
+        folder = os.path.realpath(
+            os.path.join(show_dir, _season_folder_name(season_num))
+        )
+        if folder != base and not folder.startswith(base + os.sep):
+            continue
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, _SEASON_CHECK_FILE), "w") as fh:
+            fh.write(f"{episode}\n")
+
+    return {"fully_ignored": fully_ignored}

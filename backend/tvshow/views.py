@@ -1,12 +1,19 @@
 """TV/anime HTTP endpoints (thin: work lives in :mod:`tvshow.services`)."""
 from drf_spectacular.utils import extend_schema
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core import conf
 from core.images import serve_media_image
 from tvshow import services
-from tvshow.serializers import LocalGapSerializer, ShowDiffSerializer
+from tvshow.serializers import (
+    IgnoreOptionsSerializer,
+    IgnoreRequestSerializer,
+    IgnoreResultSerializer,
+    LocalGapSerializer,
+    ShowDiffSerializer,
+)
 
 
 class TvDiffView(APIView):
@@ -43,6 +50,64 @@ class AnimeLocalGapsView(APIView):
     )
     def get(self, request):
         return Response(services.local_gaps("anime"))
+
+
+class _IgnoreOptionsView(APIView):
+    """Gap seasons + selectable episodes for the ignore dialog.
+
+    ``GET ?tmdb_id=<int>``. TMDB is fetched here (on dialog open), not on
+    every gap render. Subclasses set ``library``.
+    """
+
+    library: str = ""
+
+    @extend_schema(responses=IgnoreOptionsSerializer)
+    def get(self, request):
+        raw = request.query_params.get("tmdb_id")
+        try:
+            tmdb_id = int(raw)
+        except (TypeError, ValueError):
+            raise ValidationError({"tmdb_id": "integer query param required"})
+        return Response(services.ignore_options(self.library, tmdb_id))
+
+
+class _IgnoreView(APIView):
+    """Write the per-season skip markers chosen in the dialog.
+
+    ``POST {tmdb_id, selections:[{season_num, episode}]}``. Subclasses set
+    ``library``.
+    """
+
+    library: str = ""
+
+    @extend_schema(
+        request=IgnoreRequestSerializer, responses=IgnoreResultSerializer
+    )
+    def post(self, request):
+        body = IgnoreRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        return Response(
+            services.ignore_apply(
+                self.library, data["tmdb_id"], data["selections"]
+            )
+        )
+
+
+class TvIgnoreOptionsView(_IgnoreOptionsView):
+    library = "tv"
+
+
+class AnimeIgnoreOptionsView(_IgnoreOptionsView):
+    library = "anime"
+
+
+class TvIgnoreView(_IgnoreView):
+    library = "tv"
+
+
+class AnimeIgnoreView(_IgnoreView):
+    library = "anime"
 
 
 def tv_poster(request, image_path):

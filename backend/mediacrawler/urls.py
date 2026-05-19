@@ -39,6 +39,16 @@ urlpatterns = [
         tv_views.tv_poster,
         name="tv-shows-poster",
     ),
+    path(
+        "v1/tv-shows/ignore-options",
+        tv_views.TvIgnoreOptionsView.as_view(),
+        name="tv-shows-ignore-options",
+    ),
+    path(
+        "v1/tv-shows/ignore",
+        tv_views.TvIgnoreView.as_view(),
+        name="tv-shows-ignore",
+    ),
     # Anime (served by the tvshow app)
     path("v1/anime/diff", tv_views.AnimeDiffView.as_view(), name="anime-diff"),
     path(
@@ -50,6 +60,16 @@ urlpatterns = [
         "v1/anime/poster/<path:image_path>",
         tv_views.anime_poster,
         name="anime-poster",
+    ),
+    path(
+        "v1/anime/ignore-options",
+        tv_views.AnimeIgnoreOptionsView.as_view(),
+        name="anime-ignore-options",
+    ),
+    path(
+        "v1/anime/ignore",
+        tv_views.AnimeIgnoreView.as_view(),
+        name="anime-ignore",
     ),
     # Albums
     path("v1/albums/diff", music_views.DiffView.as_view(), name="albums-diff"),

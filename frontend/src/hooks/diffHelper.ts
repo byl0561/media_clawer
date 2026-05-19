@@ -1,6 +1,6 @@
 import type {MediaItem, MediaItemGroupData} from "@/types";
 import type {ApiResult} from "@/http/client";
-import type {LocalGap, MediaItemDTO} from "@/types/api";
+import type {IgnoreLibrary, LocalGap, MediaItemDTO} from "@/types/api";
 
 export type Loader<T> = () => Promise<ApiResult<T>>;
 
@@ -50,6 +50,7 @@ export function buildGroup<T>(
 /** Build the "续集" tab from a `local-gaps` payload (shared by tv & anime). */
 export function buildLocalGapGroup(
     load: Loader<LocalGap[]>,
+    library: IgnoreLibrary,
 ): Promise<MediaItemGroupData> {
     return collect(load, (gaps, items) => {
         for (const gap of gaps) {
@@ -59,6 +60,11 @@ export function buildLocalGapGroup(
             const sorted = [...seasons].sort((a, b) => a - b);
             const media = toMedia(gap.show);
             media.title = `${media.title} - ${sorted.map((n) => `S${n}`).join(",")}`;
+            // tmdb_id drives the ignore dialog; only present for TMDB/local
+            // shows (it always is here — gap.show is the TMDB object).
+            if (gap.show.tmdb_id != null) {
+                media.ignore = {library, tmdbId: gap.show.tmdb_id};
+            }
             items.push(media);
         }
     });

@@ -12,7 +12,7 @@ export default function useAnime(): MediaGroup {
         name: "动漫",
         mediaItemFunctionGroups: [
             {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing)},
-            {name: "续集", acquireData: () => buildLocalGapGroup(loadGaps)},
+            {name: "续集", acquireData: () => buildLocalGapGroup(loadGaps, "anime")},
             {name: "过时", acquireData: () => buildGroup(loadDiff, (d) => d.extra)},
         ],
     };

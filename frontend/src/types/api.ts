@@ -1,5 +1,8 @@
 /** Server response shapes for the `/api/v1` endpoints. */
 
+/** The two libraries with a 续集 ignore action. */
+export type IgnoreLibrary = "tv" | "anime";
+
 export interface MediaItemDTO {
     title: string;
     score: number | null;
@@ -14,6 +17,8 @@ export interface MovieItem extends MediaItemDTO {
 
 export interface ShowItem extends MediaItemDTO {
     year: number[];
+    /** Present for TMDB/local shows (local-gaps); null for Douban/Bangumi. */
+    tmdb_id: number | null;
 }
 
 export interface AlbumItem extends MediaItemDTO {
@@ -51,4 +56,39 @@ export interface LocalGap {
     show: ShowItem;
     missing_seasons: SeasonRef[];
     incomplete_seasons: IncompleteSeason[];
+}
+
+/** One episode the user could ignore up to (from TMDB, on dialog open). */
+export interface IgnoreEpisode {
+    num: number;
+    name: string;
+    date: string | null;
+}
+
+/** A gap season offered in the ignore dialog. */
+export interface IgnoreSeason {
+    season_num: number;
+    season_name: string;
+    /** Highest episode already present locally (0 if the season is absent). */
+    local_max_episode: number;
+    /** Highest episode TMDB knows — selecting this ignores the whole rest. */
+    latest_episode: number;
+    /** Selectable episodes: the currently-missing range, ascending. */
+    episodes: IgnoreEpisode[];
+}
+
+export interface IgnoreOptions {
+    title: string;
+    seasons: IgnoreSeason[];
+}
+
+/** One season's chosen cutoff: ignore episodes up to and including `episode`. */
+export interface IgnoreSelection {
+    season_num: number;
+    episode: number;
+}
+
+export interface IgnoreResult {
+    /** True iff every gap season was selected at its latest episode. */
+    fully_ignored: boolean;
 }

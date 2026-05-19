@@ -17,3 +17,16 @@ export async function httpGet<T>(url: string): Promise<ApiResult<T>> {
         return {success: false};
     }
 }
+
+/** POST `url` with a JSON `body`, same never-throws contract as httpGet. */
+export async function httpPost<T>(
+    url: string,
+    body: unknown,
+): Promise<ApiResult<T>> {
+    try {
+        const res = await client.post<T>(url, body);
+        return {success: true, data: res.data};
+    } catch {
+        return {success: false};
+    }
+}
