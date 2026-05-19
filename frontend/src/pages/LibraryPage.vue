@@ -36,6 +36,16 @@ const tabs = computed(() => {
 
 const activeState = computed<TabState | undefined>(() => states.value[active.value])
 
+// Concise, polite announcement for screen readers (the poster grid itself is
+// not in a live region — that would read out every title on every change).
+const statusText = computed(() => {
+  const s = activeState.value
+  if (!s || s.status === "loading") return "加载中"
+  if (s.status === "error") return "加载失败"
+  if (s.data!.mediaItems.length === 0) return "已与榜单同步，无需维护"
+  return `已加载 ${s.data!.mediaItems.length} 项`
+})
+
 async function loadTab(i: number): Promise<void> {
   const group = entry.value?.group
   if (!group) return
@@ -65,9 +75,16 @@ async function loadAll(): Promise<void> {
   active.value = firstWithItems >= 0 ? firstWithItems : 0
 }
 
-onMounted(loadAll)
-watch(key, loadAll)
-watch(catalog.version, loadAll)
+// Rebuild only this media type's loaders, then reload — a failed tab can
+// retry without re-fetching the other four libraries.
+function retry(): void {
+  catalog.refreshEntry(key.value)
+  catalog.track(loadAll())
+}
+
+onMounted(() => catalog.track(loadAll()))
+watch(key, () => catalog.track(loadAll()))
+watch(catalog.version, () => catalog.track(loadAll()))
 </script>
 
 <template>
@@ -86,10 +103,12 @@ watch(catalog.version, loadAll)
         <SegmentedTabs :tabs="tabs" v-model="active" />
       </div>
 
+      <p class="sr-only" role="status" aria-live="polite">{{ statusText }}</p>
+
       <SkeletonGrid v-if="!activeState || activeState.status === 'loading'" />
       <ErrorState
         v-else-if="activeState.status === 'error'"
-        @retry="catalog.refresh()"
+        @retry="retry"
       />
       <EmptyState v-else-if="activeState.data!.mediaItems.length === 0" />
       <PosterGrid v-else :items="activeState.data!.mediaItems" />

@@ -7,7 +7,11 @@ import AppFooter from "@/components/AppFooter.vue";
   <div class="flex min-h-screen flex-col">
     <AppBar />
     <main class="flex-1">
-      <RouterView />
+      <RouterView v-slot="{ Component }">
+        <Transition name="fade" mode="out-in">
+          <component :is="Component" />
+        </Transition>
+      </RouterView>
     </main>
     <AppFooter />
   </div>

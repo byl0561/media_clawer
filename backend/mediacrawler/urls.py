@@ -9,6 +9,7 @@ from django.urls import path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from book import views as book_views
+from core import views as core_views
 from movie import views as movie_views
 from music import views as music_views
 from tvshow import views as tv_views
@@ -64,6 +65,8 @@ urlpatterns = [
         book_views.cover,
         name="books-cover",
     ),
+    # Remote poster/cover proxy (replaces client-side images.weserv.nl)
+    path("v1/images/proxy", core_views.image_proxy, name="image-proxy"),
     # OpenAPI schema + Swagger UI
     path("v1/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

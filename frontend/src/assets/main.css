@@ -52,4 +52,40 @@
       transparent
     );
   }
+
+  /* Route view crossfade (App.vue <Transition name="fade">) */
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: opacity 0.15s ease;
+  }
+  .fade-enter-from,
+  .fade-leave-to {
+    opacity: 0;
+  }
+
+  /* Soft horizontal fade at the edges of a scrollable strip, so an
+     overflowing nav reads as "more, scroll sideways" on small screens. */
+  .edge-fade-x {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 16px,
+      #000 calc(100% - 16px),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 16px,
+      #000 calc(100% - 16px),
+      transparent
+    );
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: none;
+    }
+  }
 }

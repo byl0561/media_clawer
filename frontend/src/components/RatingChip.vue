@@ -4,7 +4,7 @@ defineProps<{ score: number | null }>()
 
 <template>
   <span
-    v-if="score"
+    v-if="score != null"
     class="inline-flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-xs font-semibold backdrop-blur-sm"
   >
     <svg class="h-3 w-3 text-amber-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

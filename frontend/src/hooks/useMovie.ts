@@ -4,10 +4,14 @@ import {buildGroup, once, toMedia} from "@/hooks/diffHelper";
 
 export default function useMovie(): MediaGroup {
     const loadDiff = once(diffMovie);
+    // Memoized like loadDiff so re-mounting the Overview card (the router has
+    // no keep-alive) doesn't re-hit collection-gaps on every navigation; a
+    // real reload still goes through catalog.refresh().
+    const loadGaps = once(movieCollectionGaps);
 
     async function getContinued(): Promise<MediaItemGroupData> {
         const group: MediaItemGroupData = {valid: true, mediaItems: []};
-        const res = await movieCollectionGaps();
+        const res = await loadGaps();
         if (!res.success) {
             group.valid = false;
             return group;

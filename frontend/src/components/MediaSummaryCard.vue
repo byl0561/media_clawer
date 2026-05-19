@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import {onMounted, ref, watch} from "vue";
+import {computed, onMounted, ref, watch} from "vue";
 import type {CatalogEntry} from "@/stores/mediaCatalog";
+import {useMediaCatalog} from "@/stores/mediaCatalog";
 
 const props = defineProps<{ entry: CatalogEntry }>()
+const catalog = useMediaCatalog()
 
 interface Count {
   name: string;
@@ -12,17 +14,22 @@ interface Count {
 const counts = ref<Count[]>([])
 const loading = ref(true)
 const failed = ref(false)
+// Known before data arrives; the skeleton uses it so the loading -> loaded
+// transition keeps the same column layout and doesn't reflow the card.
+const tabCount = computed(() => props.entry.group.mediaItemFunctionGroups.length)
 
 async function load(): Promise<void> {
   loading.value = true
   failed.value = false
   const tabs = props.entry.group.mediaItemFunctionGroups
-  const results = await Promise.all(
-    tabs.map((tab) =>
-      tab
-        .acquireData()
-        .then((data) => (data.valid ? data.mediaItems.length : null))
-        .catch(() => null),
+  const results = await catalog.track(
+    Promise.all(
+      tabs.map((tab) =>
+        tab
+          .acquireData()
+          .then((data) => (data.valid ? data.mediaItems.length : null))
+          .catch(() => null),
+      ),
     ),
   )
   counts.value = tabs.map((tab, i) => ({name: tab.name, value: results[i]}))
@@ -39,7 +46,7 @@ watch(() => props.entry, load)
 <template>
   <RouterLink
     :to="`/library/${props.entry.key}`"
-    class="group flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 transition hover:-translate-y-0.5 hover:border-accent/50 hover:bg-surface-2"
+    class="group flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 transition hover:-translate-y-0.5 hover:border-accent/50 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg focus-visible:-translate-y-0.5 focus-visible:border-accent/50"
   >
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -50,8 +57,16 @@ watch(() => props.entry, load)
     </div>
 
     <template v-if="loading">
-      <div class="skeleton h-9 w-24 rounded"></div>
-      <div class="skeleton h-4 w-40 rounded"></div>
+      <div class="flex" aria-hidden="true">
+        <div
+          v-for="i in tabCount"
+          :key="i"
+          class="flex flex-1 flex-col items-center gap-2"
+        >
+          <div class="skeleton h-8 w-10 rounded"></div>
+          <div class="skeleton h-3 w-8 rounded"></div>
+        </div>
+      </div>
     </template>
 
     <template v-else-if="failed">
@@ -59,19 +74,20 @@ watch(() => props.entry, load)
     </template>
 
     <template v-else>
-      <div class="flex items-baseline gap-2">
-        <span
-          class="text-4xl font-bold tabular-nums"
-          :class="(counts[0]?.value ?? 0) > 0 ? 'text-accent' : 'text-success'"
-        >{{ counts[0]?.value ?? 0 }}</span>
-        <span class="text-sm text-muted">{{ counts[0]?.name }}</span>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <span
-          v-for="c in counts.slice(1)"
-          :key="c.name"
-          class="rounded-md bg-surface-2 px-2 py-1 text-xs text-muted"
-        >{{ c.name }} <b class="text-content tabular-nums">{{ c.value ?? "—" }}</b></span>
+      <div class="flex">
+        <div v-for="c in counts" :key="c.name" class="flex-1 text-center">
+          <div
+            class="text-3xl font-bold tabular-nums"
+            :class="
+              c.value == null
+                ? 'text-muted'
+                : c.value > 0
+                  ? 'text-accent'
+                  : 'text-success'
+            "
+          >{{ c.value ?? "—" }}</div>
+          <div class="mt-1 text-xs text-muted">{{ c.name }}</div>
+        </div>
       </div>
     </template>
   </RouterLink>
