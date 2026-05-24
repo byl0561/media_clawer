@@ -16,10 +16,33 @@ from core import conf
 
 __all__ = ["scan_files", "scan_dirs"]
 
+# Directory names to skip at every level. Per-platform recycle bins keep
+# deleted files on disk, so without this the scanner would still pick up
+# movie.nfo / tvshow.nfo from items the user "deleted".
+_EXCLUDED_DIRS = {
+    "#recycle",        # Synology
+    "@Recycle",        # QNAP
+    "$RECYCLE.BIN",    # Windows Vista+
+    "RECYCLER",        # Windows XP
+    ".Trash",          # Linux / generic
+    ".Trashes",        # macOS (volume-level)
+    ".Trash-1000",     # Linux freedesktop (uid 1000 — covers single-user NAS)
+}
+
+
+def _excluded(name: str) -> bool:
+    # Linux freedesktop trash is .Trash-<uid>; cover the general case too.
+    return name in _EXCLUDED_DIRS or name.startswith(".Trash-")
+
+
+def _prune(dirs: List[str]) -> None:
+    dirs[:] = [d for d in dirs if not _excluded(d)]
+
 
 def _collect_files(path: str, name_filter: Callable[[str], bool]) -> List[str]:
     matched = []
-    for root, _dirs, files in os.walk(path):
+    for root, dirs, files in os.walk(path):
+        _prune(dirs)
         for file in files:
             if name_filter(file):
                 matched.append(os.path.join(root, file))
@@ -32,6 +55,7 @@ def _collect_dirs(path: str, name_filter: Callable[[str], bool]) -> List[str]:
     if name_filter(leaf):
         matched.append(path)
     for root, dirs, _files in os.walk(path):
+        _prune(dirs)
         for d in dirs:
             if name_filter(d):
                 matched.append(os.path.join(root, d))
@@ -44,7 +68,7 @@ def _top_level_subdirs(root: str) -> List[str]:
     return [
         os.path.join(root, name)
         for name in os.listdir(root)
-        if os.path.isdir(os.path.join(root, name))
+        if not _excluded(name) and os.path.isdir(os.path.join(root, name))
     ]
 
 
