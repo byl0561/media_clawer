@@ -90,6 +90,7 @@ class LocalMovie(Movie):
         tmdb_rate: Rate,
         tmdb_id: int,
         tmdb_set: MovieSet,
+        alias: Optional[List[str]] = None,
     ):
         self.title = title
         self.original_title = original_title
@@ -99,9 +100,10 @@ class LocalMovie(Movie):
         self.tmdb_rate = tmdb_rate
         self.tmdb_id = tmdb_id
         self.tmdb_set = tmdb_set
+        self.alias = alias or []
 
     def get_titles(self) -> List[str]:
-        return [self.title, self.original_title]
+        return [self.title, self.original_title, *self.alias]
 
     def get_year(self) -> int:
         return self.year

@@ -70,6 +70,13 @@ def process_file(path: str):
         poster = cover_files[0].replace(conf.MOVIE_ROOT, "")
         poster = f"/v1/movies/poster/{poster}"
 
+    # 可选的中文别名补充：TMDB 没收录中文翻译的片（日剧/韩剧/小众片）
+    # 在媒体目录手动建 alias.txt，每行一个别名，让榜单文本匹配能命中。
+    alias = []
+    if os.path.exists(os.path.join(root, "alias.txt")):
+        with open(os.path.join(root, "alias.txt"), "r") as f:
+            alias = f.read().splitlines()
+
     return LocalMovie(
         title,
         original_title,
@@ -79,6 +86,7 @@ def process_file(path: str):
         Rate(tmdb_score, tmdb_votes, "TMDB"),
         tmdb_id,
         MovieSet(tmdb_set_id, tmdb_set_name, "TMDB"),
+        alias=alias,
     )
 
 
