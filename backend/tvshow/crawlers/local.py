@@ -92,7 +92,9 @@ def process_file(path: str):
                     checked_episode = int(f.readline())
                 season_folder_name = child.split("/")[-1]
 
-                if season_folder_name == "Specials":
+                # tmm 默认用 "Specials" 命名第 0 季；MoviePilot 默认用 "Season 0"。
+                # 两者都规范化为 Specials 语义，保持下游展示一致。
+                if season_folder_name in ("Specials", "Season 0"):
                     shadow_episodes.append(
                         LocalShadowSeason(0, "Specials", checked_episode)
                     )
