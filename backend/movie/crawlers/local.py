@@ -1,4 +1,4 @@
-"""Local movie library scanner (tinyMediaManager ``movie.nfo`` files).
+"""Local movie library scanner (tinyMediaManager / MoviePilot NFO files).
 
 Parsing rules unchanged; only the I/O plumbing (process pool, config) is now
 shared via :mod:`core`.
@@ -11,14 +11,23 @@ import xml.etree.ElementTree as ET
 from core import conf, scanning
 from movie.models import LocalMovie, MovieSet, Rate
 
+# MoviePilot 默认命名：xxx (YYYY).nfo（位于 xxx (YYYY)/ 目录下）
+# tinyMediaManager 默认命名：movie.nfo
+_MP_MOVIE_NFO_RE = re.compile(r".*\(\d{4}\)\.nfo$")
+
 
 def file_filter(file: str) -> bool:
-    return file == "movie.nfo"
+    return file == "movie.nfo" or _MP_MOVIE_NFO_RE.match(file) is not None
 
 
 def process_file(path: str):
     root, file = os.path.split(path)
     if not file_filter(file):
+        return None
+
+    # 去重：tmm + MP 混合库时，同目录可能既有 movie.nfo 又有 xxx (年).nfo。
+    # 让 movie.nfo 优先处理，跳过同目录的 MP 风格 nfo，避免一部电影被识别两次。
+    if file != "movie.nfo" and os.path.exists(os.path.join(root, "movie.nfo")):
         return None
 
     tree = ET.parse(os.path.join(root, file))
