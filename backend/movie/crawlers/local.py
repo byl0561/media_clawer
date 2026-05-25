@@ -38,7 +38,7 @@ def process_file(path: str):
         if root_element.find("originaltitle") is not None
         else title
     )
-    year = int(re.search(r"\((\d{4})\)", root.split("/")[-1]).group(1))
+    year = int(root_element.find("year").text)
     country_list = [country.text for country in root_element.findall("country")]
     tmdb_score = float(
         root_element.find("./ratings/rating[@name='themoviedb']/value").text
