@@ -6,9 +6,10 @@ import RatingChip from "@/components/RatingChip.vue";
 import IgnoreDialog from "@/components/IgnoreDialog.vue";
 
 const props = defineProps<{ item: MediaItem }>()
-// Emitted only when the user ignored every gap season up to its latest
-// episode — the parent then drops this card without waiting for a rescan.
-const emit = defineEmits<{ ignored: [] }>()
+// `fully` is true when every gap season was ignored up to its latest episode
+// (parent drops the card); false when only some seasons were ignored (parent
+// refetches so the remaining seasons render with an updated title).
+const emit = defineEmits<{ ignored: [fully: boolean] }>()
 
 const dialogOpen = ref(false)
 
@@ -21,7 +22,7 @@ function onImgError(e: Event): void {
 
 function onDone(payload: { fullyIgnored: boolean }): void {
   dialogOpen.value = false
-  if (payload.fullyIgnored) emit("ignored")
+  emit("ignored", payload.fullyIgnored)
 }
 </script>
 

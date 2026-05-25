@@ -82,12 +82,19 @@ function retry(): void {
   catalog.track(loadAll())
 }
 
-// Drop a card the user fully ignored, without waiting for the next rescan.
-function onIgnored(item: MediaItem): void {
-  const data = activeState.value?.data
-  if (!data) return
-  const idx = data.mediaItems.indexOf(item)
-  if (idx !== -1) data.mediaItems.splice(idx, 1)
+// Fully ignored: drop the card immediately (no rescan needed).
+// Partial: refetch this tab so the card's season list reflects what's left
+// — otherwise the just-ignored season would still show in the baked title.
+function onIgnored(item: MediaItem, fully: boolean): void {
+  if (fully) {
+    const data = activeState.value?.data
+    if (!data) return
+    const idx = data.mediaItems.indexOf(item)
+    if (idx !== -1) data.mediaItems.splice(idx, 1)
+    return
+  }
+  catalog.refreshEntry(key.value)
+  catalog.track(loadTab(active.value))
 }
 
 onMounted(() => catalog.track(loadAll()))

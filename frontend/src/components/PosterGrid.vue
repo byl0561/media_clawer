@@ -3,7 +3,7 @@ import type {MediaItem} from "@/types";
 import PosterCard from "@/components/PosterCard.vue";
 
 defineProps<{ items: MediaItem[] }>()
-const emit = defineEmits<{ ignored: [item: MediaItem] }>()
+const emit = defineEmits<{ ignored: [item: MediaItem, fully: boolean] }>()
 </script>
 
 <template>
@@ -12,7 +12,7 @@ const emit = defineEmits<{ ignored: [item: MediaItem] }>()
       v-for="item in items"
       :key="item.link ?? item.title"
       :item="item"
-      @ignored="emit('ignored', item)"
+      @ignored="(fully) => emit('ignored', item, fully)"
     />
   </div>
 </template>
