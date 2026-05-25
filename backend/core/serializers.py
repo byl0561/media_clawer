@@ -31,7 +31,7 @@ class RatedMediaSerializer(serializers.Serializer):
 
     def get_score(self, obj) -> Optional[float]:
         rate = obj.get_rate()
-        return rate.score if rate is not None else None
+        return round(rate.score, 1) if rate is not None else None
 
     def get_votes(self, obj) -> Optional[int]:
         rate = obj.get_rate()
