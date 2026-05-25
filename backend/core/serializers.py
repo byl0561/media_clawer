@@ -9,7 +9,12 @@ from typing import Optional
 
 from rest_framework import serializers
 
-__all__ = ["RatedMediaSerializer"]
+__all__ = [
+    "RatedMediaSerializer",
+    "AliasTargetSerializer",
+    "AliasBindRequestSerializer",
+    "AliasBindResultSerializer",
+]
 
 
 class RatedMediaSerializer(serializers.Serializer):
@@ -42,3 +47,32 @@ class RatedMediaSerializer(serializers.Serializer):
 
     def get_link(self, obj) -> Optional[str]:
         return obj.get_link()
+
+
+# --- Bind alias dialog (shared by movie + tvshow apps) -----------------
+# The "最新" tab gets a "绑定" button on every poster. Clicking it lists
+# local items the user may bind the missing rank entry to; submitting
+# appends the rank title as an alias on the chosen local folder.
+
+
+class AliasTargetSerializer(serializers.Serializer):
+    """One row of ``GET /api/v1/{tv-shows,anime,movies}/alias-targets``."""
+
+    tmdb_id = serializers.IntegerField()
+    title = serializers.CharField()
+    year = serializers.IntegerField()
+    poster = serializers.CharField(allow_null=True, required=False)
+
+
+class AliasBindRequestSerializer(serializers.Serializer):
+    """`POST /api/v1/{tv-shows,anime,movies}/alias-bind` request body."""
+
+    tmdb_id = serializers.IntegerField()
+    aliases = serializers.ListField(
+        child=serializers.CharField(allow_blank=False), min_length=1
+    )
+
+
+class AliasBindResultSerializer(serializers.Serializer):
+    bound = serializers.BooleanField()
+    added = serializers.IntegerField()

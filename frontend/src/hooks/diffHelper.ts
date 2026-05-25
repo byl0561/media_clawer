@@ -1,6 +1,6 @@
 import type {MediaItem, MediaItemGroupData} from "@/types";
 import type {ApiResult} from "@/http/client";
-import type {IgnoreLibrary, LocalGap, MediaItemDTO} from "@/types/api";
+import type {BindLibrary, IgnoreLibrary, LocalGap, MediaItemDTO} from "@/types/api";
 
 export type Loader<T> = () => Promise<ApiResult<T>>;
 
@@ -37,13 +37,25 @@ async function collect<T>(
     return group;
 }
 
-/** Build a tab from a diff-style payload by mapping `pick(data)`. */
+/** Build a tab from a diff-style payload by mapping `pick(data)`.
+ *
+ * Pass `bindLibrary` only for the "最新" tab — every missing rank item then
+ * gets a `bind` ref that powers the per-poster bind-alias dialog. The "过时"
+ * tab maps locals back to the same diff response and must not carry it.
+ */
 export function buildGroup<T>(
     load: Loader<T>,
     pick: (data: T) => MediaItemDTO[],
+    bindLibrary?: BindLibrary,
 ): Promise<MediaItemGroupData> {
     return collect(load, (data, items) => {
-        for (const item of pick(data)) items.push(toMedia(item));
+        for (const item of pick(data)) {
+            const media = toMedia(item);
+            if (bindLibrary && item.title) {
+                media.bind = {library: bindLibrary, alias: item.title};
+            }
+            items.push(media);
+        }
     });
 }
 

@@ -5,12 +5,16 @@ the payload). The diff is recomputed on every request; only the upstream
 Douban/TMDB responses stay cached (via :mod:`core.http`), which the cron job
 keeps warm.
 """
+import os
+import xml.etree.ElementTree as ET
 from datetime import datetime
+from typing import List, Optional
 
 from core import conf
-from core.exceptions import UpstreamUnavailable
+from core.aliases import append_unique_aliases
+from core.exceptions import ShowNotFound, UpstreamUnavailable
 from movie.crawlers.douban import crawl_douban_250
-from movie.crawlers.local import crawl_local
+from movie.crawlers.local import crawl_local, file_filter
 from movie.crawlers.tmdb import get_tmdb_movies_in_set
 from movie.matching import get_extra_movies, get_missing_movies
 from movie.models import Movie, TmdbMovie
@@ -102,3 +106,63 @@ def refresh_all() -> None:
     }
     for set_id in set_ids:
         get_tmdb_movies_in_set(set_id, cache=False)
+
+
+# --- Alias bind (manual chinese-title supplement) -----------------------
+# See tvshow.services for the design rationale. Movies use the same flow:
+# locate the on-disk folder by TMDB id, append rank titles to alias.txt so
+# the next list/local diff text-matches them.
+
+
+def _find_movie_dir(tmdb_id: int) -> Optional[str]:
+    """Directory of the movie nfo whose tmdb ``uniqueid`` == ``tmdb_id``.
+
+    ``file_filter`` accepts both tmm's ``movie.nfo`` and MoviePilot's
+    ``{title} ({year}).nfo``, so this works on mixed libraries.
+    """
+    base = os.path.realpath(conf.MOVIE_ROOT)
+    if not os.path.isdir(base):
+        return None
+    for current, _dirs, files in os.walk(base):
+        for fname in files:
+            if not file_filter(fname):
+                continue
+            try:
+                tree = ET.parse(os.path.join(current, fname))
+                node = tree.getroot().find("./uniqueid[@type='tmdb']")
+                if node is not None and node.text and int(node.text) == tmdb_id:
+                    return current
+            except (ET.ParseError, ValueError, TypeError):
+                continue
+    return None
+
+
+def alias_targets() -> list:
+    """All local movies usable as bind targets for a missing rank item."""
+    targets = []
+    for local in crawl_local(conf.MOVIE_ROOT):
+        targets.append(
+            {
+                "tmdb_id": local.tmdb_id,
+                "title": local.title,
+                "year": local.year,
+                "poster": local.poster,
+            }
+        )
+    targets.sort(key=lambda x: x["title"] or "")
+    return targets
+
+
+def alias_bind(tmdb_id: int, aliases: List[str]) -> dict:
+    """Append ``aliases`` to the matched movie's ``alias.txt``."""
+    base = os.path.realpath(conf.MOVIE_ROOT)
+    movie_dir = _find_movie_dir(tmdb_id)
+    if movie_dir is None:
+        raise ShowNotFound()
+
+    target = os.path.realpath(movie_dir)
+    if target != base and not target.startswith(base + os.sep):
+        raise ShowNotFound()
+
+    added = append_unique_aliases(target, aliases)
+    return {"bound": True, "added": added}

@@ -1,6 +1,9 @@
 import {httpGet, httpPost} from "@/http/client";
 import type {
     AlbumItem,
+    AliasBindResult,
+    AliasTarget,
+    BindLibrary,
     BookItem,
     CollectionGap,
     Diff,
@@ -18,6 +21,12 @@ const V1 = "/api/v1";
 
 // Maps a library to its REST URL segment (tv -> tv-shows).
 const IGNORE_SEGMENT: Record<IgnoreLibrary, string> = {
+    tv: "tv-shows",
+    anime: "anime",
+};
+
+const BIND_SEGMENT: Record<BindLibrary, string> = {
+    movie: "movies",
     tv: "tv-shows",
     anime: "anime",
 };
@@ -48,4 +57,17 @@ export const applyIgnore = (
     httpPost<IgnoreResult>(`${V1}/${IGNORE_SEGMENT[library]}/ignore`, {
         tmdb_id: tmdbId,
         selections,
+    });
+
+export const aliasTargets = (library: BindLibrary) =>
+    httpGet<AliasTarget[]>(`${V1}/${BIND_SEGMENT[library]}/alias-targets`);
+
+export const bindAlias = (
+    library: BindLibrary,
+    tmdbId: number,
+    aliases: string[],
+) =>
+    httpPost<AliasBindResult>(`${V1}/${BIND_SEGMENT[library]}/alias-bind`, {
+        tmdb_id: tmdbId,
+        aliases,
     });

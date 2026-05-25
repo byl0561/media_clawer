@@ -5,6 +5,11 @@ from rest_framework.views import APIView
 
 from core import conf
 from core.images import serve_media_image
+from core.serializers import (
+    AliasBindRequestSerializer,
+    AliasBindResultSerializer,
+    AliasTargetSerializer,
+)
 from movie import services
 from movie.serializers import MovieCollectionGapSerializer, MovieDiffSerializer
 
@@ -26,6 +31,32 @@ class CollectionGapsView(APIView):
     )
     def get(self, request):
         return Response(services.collection_gaps())
+
+
+class AliasTargetsView(APIView):
+    """All local movies the user may bind a missing rank entry to."""
+
+    @extend_schema(
+        responses=AliasTargetSerializer(many=True),
+        operation_id="movies_alias_targets",
+    )
+    def get(self, request):
+        return Response(services.alias_targets())
+
+
+class AliasBindView(APIView):
+    """Append rank titles as aliases on the chosen local movie."""
+
+    @extend_schema(
+        request=AliasBindRequestSerializer,
+        responses=AliasBindResultSerializer,
+        operation_id="movies_alias_bind",
+    )
+    def post(self, request):
+        body = AliasBindRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        return Response(services.alias_bind(data["tmdb_id"], data["aliases"]))
 
 
 def poster(request, image_path):

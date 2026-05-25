@@ -4,14 +4,19 @@ import type {MediaItem} from "@/types";
 import {imageUrl} from "@/utils/image";
 import RatingChip from "@/components/RatingChip.vue";
 import IgnoreDialog from "@/components/IgnoreDialog.vue";
+import BindAliasDialog from "@/components/BindAliasDialog.vue";
 
 const props = defineProps<{ item: MediaItem }>()
 // `fully` is true when every gap season was ignored up to its latest episode
 // (parent drops the card); false when only some seasons were ignored (parent
 // refetches so the remaining seasons render with an updated title).
-const emit = defineEmits<{ ignored: [fully: boolean] }>()
+const emit = defineEmits<{
+  ignored: [fully: boolean];
+  bound: [];
+}>()
 
-const dialogOpen = ref(false)
+const ignoreDialogOpen = ref(false)
+const bindDialogOpen = ref(false)
 
 // A remote poster can still 404 (host down, hotlink, dead URL). Fall back to
 // the local placeholder once, guarding against an error loop on the fallback.
@@ -20,9 +25,14 @@ function onImgError(e: Event): void {
   if (!img.src.endsWith("/images/404.png")) img.src = "/images/404.png"
 }
 
-function onDone(payload: { fullyIgnored: boolean }): void {
-  dialogOpen.value = false
+function onIgnoreDone(payload: { fullyIgnored: boolean }): void {
+  ignoreDialogOpen.value = false
   emit("ignored", payload.fullyIgnored)
+}
+
+function onBindDone(): void {
+  bindDialogOpen.value = false
+  emit("bound")
 }
 </script>
 
@@ -52,10 +62,17 @@ function onDone(payload: { fullyIgnored: boolean }): void {
       <button
         v-if="props.item.ignore"
         type="button"
-        @click.stop.prevent="dialogOpen = true"
+        @click.stop.prevent="ignoreDialogOpen = true"
         title="忽略缺失"
         class="absolute right-2 top-2 rounded-md bg-black/55 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur-sm transition opacity-0 pointer-events-none hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
       >忽略</button>
+      <button
+        v-if="props.item.bind"
+        type="button"
+        @click.stop.prevent="bindDialogOpen = true"
+        title="绑定到本地条目"
+        class="absolute right-2 top-2 rounded-md bg-black/55 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur-sm transition opacity-0 pointer-events-none hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+      >绑定</button>
     </div>
     <p
       class="mt-2 line-clamp-2 text-sm text-content/90 transition group-hover:text-accent group-focus-visible:text-accent"
@@ -65,12 +82,21 @@ function onDone(payload: { fullyIgnored: boolean }): void {
     </p>
 
     <IgnoreDialog
-      v-if="dialogOpen && props.item.ignore"
+      v-if="ignoreDialogOpen && props.item.ignore"
       :library="props.item.ignore!.library"
       :tmdb-id="props.item.ignore!.tmdbId"
       :title="props.item.title"
-      @close="dialogOpen = false"
-      @done="onDone"
+      @close="ignoreDialogOpen = false"
+      @done="onIgnoreDone"
+    />
+
+    <BindAliasDialog
+      v-if="bindDialogOpen && props.item.bind"
+      :library="props.item.bind!.library"
+      :alias="props.item.bind!.alias"
+      :title="props.item.title"
+      @close="bindDialogOpen = false"
+      @done="onBindDone"
     />
   </component>
 </template>

@@ -97,6 +97,19 @@ function onIgnored(item: MediaItem, fully: boolean): void {
   catalog.track(loadTab(active.value))
 }
 
+// Bound to a local item: the alias.txt write means the next diff will match
+// this rank entry, so it'll drop from "最新". Remove the card immediately
+// (cheap optimism) and also invalidate the cached diff so subsequent
+// navigations/refreshes hit a fresh response from the server.
+function onBound(item: MediaItem): void {
+  const data = activeState.value?.data
+  if (data) {
+    const idx = data.mediaItems.indexOf(item)
+    if (idx !== -1) data.mediaItems.splice(idx, 1)
+  }
+  catalog.refreshEntry(key.value)
+}
+
 onMounted(() => catalog.track(loadAll()))
 watch(key, () => catalog.track(loadAll()))
 watch(catalog.version, () => catalog.track(loadAll()))
@@ -130,6 +143,7 @@ watch(catalog.version, () => catalog.track(loadAll()))
         v-else
         :items="activeState.data!.mediaItems"
         @ignored="onIgnored"
+        @bound="onBound"
       />
     </template>
 

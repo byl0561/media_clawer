@@ -17,13 +17,13 @@ class UpstreamUnavailable(APIException):
 
 
 class ShowNotFound(APIException):
-    """No local ``tvshow.nfo`` has a tmdb ``uniqueid`` matching the request.
+    """No local nfo has a tmdb ``uniqueid`` matching the request.
 
-    The ignore endpoints locate the show on disk by its TMDB id; a mismatch
-    means the library moved/renamed or the id is stale, which is a 404 rather
-    than a server error.
+    The ignore / bind-alias endpoints locate the item on disk by its TMDB id;
+    a mismatch means the library moved/renamed or the id is stale, which is a
+    404 rather than a server error. Used by both tv and movie endpoints.
     """
 
     status_code = 404
-    default_detail = "未在本地库中找到该剧集（tvshow.nfo 的 tmdb id 不匹配）。"
+    default_detail = "未在本地库中找到对应条目（nfo 的 tmdb id 不匹配）。"
     default_code = "show_not_found"

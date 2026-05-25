@@ -11,7 +11,7 @@ export default function useTV(): MediaGroup {
     return {
         name: "电视剧",
         mediaItemFunctionGroups: [
-            {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing)},
+            {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing, "tv")},
             {name: "续集", acquireData: () => buildLocalGapGroup(loadGaps, "tv")},
             {name: "过时", acquireData: () => buildGroup(loadDiff, (d) => d.extra)},
         ],

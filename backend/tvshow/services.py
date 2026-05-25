@@ -12,9 +12,10 @@ returning both whole-missing seasons and behind-on-episodes seasons.
 import os
 import xml.etree.ElementTree as ET
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from core import conf
+from core.aliases import append_unique_aliases
 from core.exceptions import ShowNotFound, UpstreamUnavailable
 from tvshow.crawlers.bangumi import crawl_bangumi_tv_show_80
 from tvshow.crawlers.douban import crawl_dou_list
@@ -283,3 +284,51 @@ def ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
             fh.write(f"{episode}\n")
 
     return {"fully_ignored": fully_ignored}
+
+
+# --- Alias bind (manual chinese-title supplement) -----------------------
+# The "最新" tab lists ranked items missing locally. When the rank list is
+# in chinese but a local nfo's <title> is in the original language (TMDB has
+# no chinese translation for the item), text-similarity match in
+# tvshow.matching can't connect the two. The bind endpoints let the user say
+# "this rank item is actually that local show", and we append the rank
+# title as an alias so future scans find the match without code changes.
+
+
+def alias_targets(library: str) -> list:
+    """All local shows usable as bind targets for a missing rank item.
+
+    -> [{tmdb_id, title, year, poster}]. Sorted by title for stable UI.
+    """
+    targets = []
+    for local in crawl_local(_LIBRARY_ROOT[library]):
+        targets.append(
+            {
+                "tmdb_id": local.tmdb_id,
+                "title": local.title,
+                "year": local.year,
+                "poster": local.get_poster(),
+            }
+        )
+    targets.sort(key=lambda x: x["title"] or "")
+    return targets
+
+
+def alias_bind(library: str, tmdb_id: int, aliases: List[str]) -> dict:
+    """Append ``aliases`` to the matched show's ``alias.txt``.
+
+    -> ``{bound: bool, added: int}``. ``added`` is the dedup'd count; bind
+    is idempotent so re-clicking the same rank item is a no-op.
+    """
+    root = _LIBRARY_ROOT[library]
+    show_dir = _find_show_dir(root, tmdb_id)
+    if show_dir is None:
+        raise ShowNotFound()
+
+    base = os.path.realpath(root)
+    target = os.path.realpath(show_dir)
+    if target != base and not target.startswith(base + os.sep):
+        raise ShowNotFound()
+
+    added = append_unique_aliases(target, aliases)
+    return {"bound": True, "added": added}

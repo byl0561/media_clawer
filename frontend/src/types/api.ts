@@ -3,6 +3,9 @@
 /** The two libraries with a 续集 ignore action. */
 export type IgnoreLibrary = "tv" | "anime";
 
+/** All three libraries that support the "最新" bind-alias action. */
+export type BindLibrary = "movie" | "tv" | "anime";
+
 export interface MediaItemDTO {
     title: string;
     score: number | null;
@@ -91,4 +94,18 @@ export interface IgnoreSelection {
 export interface IgnoreResult {
     /** True iff every gap season was selected at its latest episode. */
     fully_ignored: boolean;
+}
+
+/** One row of `/{movies,tv-shows,anime}/alias-targets`. */
+export interface AliasTarget {
+    tmdb_id: number;
+    title: string;
+    year: number;
+    poster: string | null;
+}
+
+export interface AliasBindResult {
+    bound: boolean;
+    /** Number of new alias lines actually written (re-bind is a no-op). */
+    added: number;
 }

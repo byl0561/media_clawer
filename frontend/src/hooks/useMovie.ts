@@ -30,7 +30,7 @@ export default function useMovie(): MediaGroup {
     return {
         name: "电影",
         mediaItemFunctionGroups: [
-            {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing)},
+            {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing, "movie")},
             {name: "续集", acquireData: getContinued},
             {name: "过时", acquireData: () => buildGroup(loadDiff, (d) => d.extra)},
         ],

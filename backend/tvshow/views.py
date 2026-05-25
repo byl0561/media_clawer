@@ -6,6 +6,11 @@ from rest_framework.views import APIView
 
 from core import conf
 from core.images import serve_media_image
+from core.serializers import (
+    AliasBindRequestSerializer,
+    AliasBindResultSerializer,
+    AliasTargetSerializer,
+)
 from tvshow import services
 from tvshow.serializers import (
     IgnoreOptionsSerializer,
@@ -107,6 +112,59 @@ class TvIgnoreView(_IgnoreView):
 
 
 class AnimeIgnoreView(_IgnoreView):
+    library = "anime"
+
+
+# --- Alias bind --------------------------------------------------------
+
+
+class _AliasTargetsView(APIView):
+    """All local items the user may bind a missing rank entry to.
+
+    ``GET`` returns ``[{tmdb_id, title, year, poster}, ...]``. Subclasses set
+    ``library``.
+    """
+
+    library: str = ""
+
+    @extend_schema(responses=AliasTargetSerializer(many=True))
+    def get(self, request):
+        return Response(services.alias_targets(self.library))
+
+
+class _AliasBindView(APIView):
+    """Append rank titles as aliases on the chosen local item.
+
+    ``POST {tmdb_id, aliases:[str]}``. Subclasses set ``library``.
+    """
+
+    library: str = ""
+
+    @extend_schema(
+        request=AliasBindRequestSerializer, responses=AliasBindResultSerializer
+    )
+    def post(self, request):
+        body = AliasBindRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        return Response(
+            services.alias_bind(self.library, data["tmdb_id"], data["aliases"])
+        )
+
+
+class TvAliasTargetsView(_AliasTargetsView):
+    library = "tv"
+
+
+class AnimeAliasTargetsView(_AliasTargetsView):
+    library = "anime"
+
+
+class TvAliasBindView(_AliasBindView):
+    library = "tv"
+
+
+class AnimeAliasBindView(_AliasBindView):
     library = "anime"
 
 

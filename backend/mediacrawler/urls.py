@@ -27,6 +27,16 @@ urlpatterns = [
         movie_views.poster,
         name="movies-poster",
     ),
+    path(
+        "v1/movies/alias-targets",
+        movie_views.AliasTargetsView.as_view(),
+        name="movies-alias-targets",
+    ),
+    path(
+        "v1/movies/alias-bind",
+        movie_views.AliasBindView.as_view(),
+        name="movies-alias-bind",
+    ),
     # TV shows
     path("v1/tv-shows/diff", tv_views.TvDiffView.as_view(), name="tv-shows-diff"),
     path(
@@ -49,6 +59,16 @@ urlpatterns = [
         tv_views.TvIgnoreView.as_view(),
         name="tv-shows-ignore",
     ),
+    path(
+        "v1/tv-shows/alias-targets",
+        tv_views.TvAliasTargetsView.as_view(),
+        name="tv-shows-alias-targets",
+    ),
+    path(
+        "v1/tv-shows/alias-bind",
+        tv_views.TvAliasBindView.as_view(),
+        name="tv-shows-alias-bind",
+    ),
     # Anime (served by the tvshow app)
     path("v1/anime/diff", tv_views.AnimeDiffView.as_view(), name="anime-diff"),
     path(
@@ -70,6 +90,16 @@ urlpatterns = [
         "v1/anime/ignore",
         tv_views.AnimeIgnoreView.as_view(),
         name="anime-ignore",
+    ),
+    path(
+        "v1/anime/alias-targets",
+        tv_views.AnimeAliasTargetsView.as_view(),
+        name="anime-alias-targets",
+    ),
+    path(
+        "v1/anime/alias-bind",
+        tv_views.AnimeAliasBindView.as_view(),
+        name="anime-alias-bind",
     ),
     # Albums
     path("v1/albums/diff", music_views.DiffView.as_view(), name="albums-diff"),
