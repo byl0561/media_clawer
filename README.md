@@ -79,7 +79,7 @@ RESTful、带版本前缀。下表为浏览器侧路径（经 Nginx）：
 ## 本地媒体规范
 
 - **电影 / 电视剧 / 动漫**：用 [tinyMediaManager](https://www.tinymediamanager.org/) 或 [MoviePilot](https://github.com/jxxghp/MoviePilot) 刮削，刮削源选 [TMDB](https://www.themoviedb.org/)，刮削后整理文件（生成 `.nfo`、`poster.*`）。
-  - 电影 NFO 文件名兼容两种约定：tmm 的 `movie.nfo` 与 MoviePilot 的 `{title} ({year}).nfo`；同目录两者并存时以 `movie.nfo` 为准。
+  - 电影 NFO 文件名兼容两种约定：tmm 的 `movie.nfo` 与 MoviePilot 的 `{title} ({year}).nfo`；同目录两者并存时以 MoviePilot 的为准。
   - 电视剧/动漫沿用 Kodi 标准：`tvshow.nfo` + `Season N/` + 集 NFO（任意名，需含 `<season>` / `<episode>` / `<title>` / `<aired>` 或 `<premiered>` / `<runtime>` 字段）。
 - **音乐专辑**：目录命名 `{专辑名} - {音乐家} {年份}`，如 `不能说的秘密 - 周杰伦 2007`。
 - **图书**：用 [calibre-web](https://github.com/janeczku/calibre-web) 管理。

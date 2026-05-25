@@ -26,8 +26,10 @@ def process_file(path: str):
         return None
 
     # 去重：tmm + MP 混合库时，同目录可能既有 movie.nfo 又有 xxx (年).nfo。
-    # 让 movie.nfo 优先处理，跳过同目录的 MP 风格 nfo，避免一部电影被识别两次。
-    if file != "movie.nfo" and os.path.exists(os.path.join(root, "movie.nfo")):
+    # MP 优先 —— 当 movie.nfo 旁边存在 MP 风格 nfo 时，跳过 movie.nfo。
+    if file == "movie.nfo" and any(
+        _MP_MOVIE_NFO_RE.match(f) for f in os.listdir(root)
+    ):
         return None
 
     tree = ET.parse(os.path.join(root, file))
