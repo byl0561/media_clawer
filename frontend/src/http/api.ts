@@ -1,9 +1,11 @@
 import {httpGet, httpPost} from "@/http/client";
 import type {
+    AlbumAliasTarget,
     AlbumItem,
     AliasBindResult,
     AliasTarget,
     BindLibrary,
+    BookAliasTarget,
     BookItem,
     CollectionGap,
     Diff,
@@ -14,6 +16,8 @@ import type {
     LocalGap,
     MovieItem,
     ShowItem,
+    TmdbBindLibrary,
+    TokenBindLibrary,
 } from "@/types/api";
 
 // RESTful, versioned API. Nginx proxies `/api/` to the Django backend.
@@ -29,6 +33,8 @@ const BIND_SEGMENT: Record<BindLibrary, string> = {
     movie: "movies",
     tv: "tv-shows",
     anime: "anime",
+    album: "albums",
+    book: "books",
 };
 
 export const diffMovie = () => httpGet<Diff<MovieItem>>(`${V1}/movies/diff`);
@@ -59,15 +65,32 @@ export const applyIgnore = (
         selections,
     });
 
-export const aliasTargets = (library: BindLibrary) =>
+// Two response shapes — tmdb-id libraries vs token-keyed libraries — share
+// the same endpoint name but differ in row schema.
+export const aliasTargetsById = (library: TmdbBindLibrary) =>
     httpGet<AliasTarget[]>(`${V1}/${BIND_SEGMENT[library]}/alias-targets`);
 
-export const bindAlias = (
-    library: BindLibrary,
+export const aliasTargetsByToken = (library: TokenBindLibrary) =>
+    httpGet<(AlbumAliasTarget | BookAliasTarget)[]>(
+        `${V1}/${BIND_SEGMENT[library]}/alias-targets`,
+    );
+
+export const bindAliasById = (
+    library: TmdbBindLibrary,
     tmdbId: number,
     aliases: string[],
 ) =>
     httpPost<AliasBindResult>(`${V1}/${BIND_SEGMENT[library]}/alias-bind`, {
         tmdb_id: tmdbId,
+        aliases,
+    });
+
+export const bindAliasByToken = (
+    library: TokenBindLibrary,
+    token: string,
+    aliases: string[],
+) =>
+    httpPost<AliasBindResult>(`${V1}/${BIND_SEGMENT[library]}/alias-bind`, {
+        token,
         aliases,
     });

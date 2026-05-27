@@ -14,6 +14,10 @@ __all__ = [
     "AliasTargetSerializer",
     "AliasBindRequestSerializer",
     "AliasBindResultSerializer",
+    "TokenAliasTargetSerializer",
+    "TokenAliasBindRequestSerializer",
+    "AlbumAliasTargetSerializer",
+    "BookAliasTargetSerializer",
 ]
 
 
@@ -76,3 +80,35 @@ class AliasBindRequestSerializer(serializers.Serializer):
 class AliasBindResultSerializer(serializers.Serializer):
     bound = serializers.BooleanField()
     added = serializers.IntegerField()
+
+
+# --- Token-based bind (album / book, no public unique key) -------------
+# Album/book locals don't have a tmdb_id, so the bind handshake uses a
+# signed token wrapping the on-disk path (see core.identifiers). The
+# request/result shapes mirror the tmdb_id flow with one rename.
+
+
+class TokenAliasBindRequestSerializer(serializers.Serializer):
+    """`POST /api/v1/{albums,books}/alias-bind` request body."""
+
+    token = serializers.CharField()
+    aliases = serializers.ListField(
+        child=serializers.CharField(allow_blank=False), min_length=1
+    )
+
+
+class TokenAliasTargetSerializer(serializers.Serializer):
+    """Base row for token-keyed alias targets; sub-classes add domain fields."""
+
+    token = serializers.CharField()
+    title = serializers.CharField()
+    poster = serializers.CharField(allow_null=True, required=False)
+
+
+class AlbumAliasTargetSerializer(TokenAliasTargetSerializer):
+    artist = serializers.CharField(allow_null=True, required=False)
+    year = serializers.IntegerField(required=False)
+
+
+class BookAliasTargetSerializer(TokenAliasTargetSerializer):
+    author = serializers.CharField(allow_null=True, required=False)

@@ -3,8 +3,14 @@
 /** The two libraries with a 续集 ignore action. */
 export type IgnoreLibrary = "tv" | "anime";
 
-/** All three libraries that support the "最新" bind-alias action. */
-export type BindLibrary = "movie" | "tv" | "anime";
+/** Libraries that bind by TMDB id (movies/tv/anime — public unique key). */
+export type TmdbBindLibrary = "movie" | "tv" | "anime";
+
+/** Libraries that bind by signed path token (album/book — no public id). */
+export type TokenBindLibrary = "album" | "book";
+
+/** All libraries supporting the "最新" bind-alias action. */
+export type BindLibrary = TmdbBindLibrary | TokenBindLibrary;
 
 export interface MediaItemDTO {
     title: string;
@@ -96,11 +102,28 @@ export interface IgnoreResult {
     fully_ignored: boolean;
 }
 
-/** One row of `/{movies,tv-shows,anime}/alias-targets`. */
+/** One row of `/{movies,tv-shows,anime}/alias-targets` (id-keyed). */
 export interface AliasTarget {
     tmdb_id: number;
     title: string;
     year: number;
+    poster: string | null;
+}
+
+/** One row of `/albums/alias-targets` (token-keyed). */
+export interface AlbumAliasTarget {
+    token: string;
+    title: string;
+    artist: string | null;
+    year: number;
+    poster: string | null;
+}
+
+/** One row of `/books/alias-targets` (token-keyed). */
+export interface BookAliasTarget {
+    token: string;
+    title: string;
+    author: string | null;
     poster: string | null;
 }
 

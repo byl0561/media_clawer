@@ -108,12 +108,32 @@ urlpatterns = [
         music_views.cover,
         name="albums-cover",
     ),
+    path(
+        "v1/albums/alias-targets",
+        music_views.AliasTargetsView.as_view(),
+        name="albums-alias-targets",
+    ),
+    path(
+        "v1/albums/alias-bind",
+        music_views.AliasBindView.as_view(),
+        name="albums-alias-bind",
+    ),
     # Books
     path("v1/books/diff", book_views.DiffView.as_view(), name="books-diff"),
     path(
         "v1/books/cover/<path:image_path>",
         book_views.cover,
         name="books-cover",
+    ),
+    path(
+        "v1/books/alias-targets",
+        book_views.AliasTargetsView.as_view(),
+        name="books-alias-targets",
+    ),
+    path(
+        "v1/books/alias-bind",
+        book_views.AliasBindView.as_view(),
+        name="books-alias-bind",
     ),
     # Remote poster/cover proxy (replaces client-side images.weserv.nl)
     path("v1/images/proxy", core_views.image_proxy, name="image-proxy"),

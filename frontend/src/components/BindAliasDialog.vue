@@ -1,14 +1,29 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref} from "vue";
-import type {AliasTarget, BindLibrary} from "@/types/api";
-import {aliasTargets, bindAlias} from "@/http/api";
+import type {
+  AlbumAliasTarget,
+  AliasTarget,
+  BindLibrary,
+  BookAliasTarget,
+} from "@/types/api";
+import {
+  aliasTargetsById,
+  aliasTargetsByToken,
+  bindAliasById,
+  bindAliasByToken,
+} from "@/http/api";
 
 // The "最新" tab lists rank items missing locally. When the local nfo has a
 // non-chinese <title> (TMDB没收录中文翻译时常见) text-similarity match in
-// the backend fails, even though the user owns the show. This dialog lets
+// the backend fails, even though the user owns the item. This dialog lets
 // the user say "this rank item is actually that local item", appending the
 // rank title to the local alias.txt so the next diff matches without code
 // changes.
+//
+// Two backend flavours share one UI: movies/tv/anime bind by tmdb_id (public
+// unique key); albums/books bind by a signed path token (no public id).
+// The component normalises both into a string `selectedKey` for selection
+// state and dispatches to the right API at fetch + submit time.
 
 const props = defineProps<{
   library: BindLibrary;
@@ -23,40 +38,88 @@ const emit = defineEmits<{
   done: [];
 }>()
 
+interface Row {
+  key: string;          // tmdb_id (stringified) or token
+  title: string;
+  subtitle: string;     // year / artist / author for visual disambiguation
+  poster: string | null;
+}
+
 const loading = ref(true)
 const failed = ref(false)
 const submitFailed = ref(false)
 const submitting = ref(false)
-const targets = ref<AliasTarget[]>([])
+const rows = ref<Row[]>([])
 const query = ref("")
-const selectedId = ref<number | null>(null)
+const selectedKey = ref<string | null>(null)
 
-const filtered = computed<AliasTarget[]>(() => {
+const isTokenLib = computed(
+  () => props.library === "album" || props.library === "book",
+)
+
+const filtered = computed<Row[]>(() => {
   const q = query.value.trim().toLowerCase()
-  if (!q) return targets.value
-  return targets.value.filter(t =>
-    t.title.toLowerCase().includes(q) || String(t.year).includes(q)
+  if (!q) return rows.value
+  return rows.value.filter(r =>
+    r.title.toLowerCase().includes(q) || r.subtitle.toLowerCase().includes(q)
   )
 })
-const canSubmit = computed(() => selectedId.value !== null && !submitting.value)
+const canSubmit = computed(() => selectedKey.value !== null && !submitting.value)
+
+function toRowMovie(t: AliasTarget): Row {
+  return {
+    key: String(t.tmdb_id),
+    title: t.title,
+    subtitle: `${t.year} · tmdb ${t.tmdb_id}`,
+    poster: t.poster,
+  }
+}
+
+function toRowAlbum(t: AlbumAliasTarget): Row {
+  return {
+    key: t.token,
+    title: t.title,
+    subtitle: [t.artist, t.year].filter(Boolean).join(" · "),
+    poster: t.poster,
+  }
+}
+
+function toRowBook(t: BookAliasTarget): Row {
+  return {
+    key: t.token,
+    title: t.title,
+    subtitle: t.author ?? "",
+    poster: t.poster,
+  }
+}
 
 async function load(): Promise<void> {
   loading.value = true
   failed.value = false
-  const res = await aliasTargets(props.library)
-  if (!res.success || res.data == null) {
-    failed.value = true
+  if (props.library === "album") {
+    const res = await aliasTargetsByToken("album")
+    if (!res.success || res.data == null) { failed.value = true }
+    else { rows.value = (res.data as AlbumAliasTarget[]).map(toRowAlbum) }
+  } else if (props.library === "book") {
+    const res = await aliasTargetsByToken("book")
+    if (!res.success || res.data == null) { failed.value = true }
+    else { rows.value = (res.data as BookAliasTarget[]).map(toRowBook) }
   } else {
-    targets.value = res.data
+    const res = await aliasTargetsById(props.library)
+    if (!res.success || res.data == null) { failed.value = true }
+    else { rows.value = res.data.map(toRowMovie) }
   }
   loading.value = false
 }
 
 async function submit(): Promise<void> {
-  if (!canSubmit.value || selectedId.value === null) return
+  if (!canSubmit.value || selectedKey.value === null) return
   submitting.value = true
   submitFailed.value = false
-  const res = await bindAlias(props.library, selectedId.value, [props.alias])
+  const aliases = [props.alias]
+  const res = isTokenLib.value
+    ? await bindAliasByToken(props.library as "album" | "book", selectedKey.value, aliases)
+    : await bindAliasById(props.library as "movie" | "tv" | "anime", Number(selectedKey.value), aliases)
   submitting.value = false
   if (!res.success || res.data == null) {
     submitFailed.value = true
@@ -111,7 +174,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
           <input
             v-model="query"
             type="text"
-            placeholder="按标题或年份搜索本地条目"
+            placeholder="按标题搜索本地条目"
             class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-content placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           />
         </div>
@@ -133,7 +196,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
           </div>
 
           <p
-            v-else-if="targets.length === 0"
+            v-else-if="rows.length === 0"
             class="py-8 text-center text-sm text-muted"
           >本地库为空。</p>
 
@@ -143,18 +206,17 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
           >没有匹配「{{ query }}」的本地条目。</p>
 
           <ul v-else class="space-y-1">
-            <li v-for="t in filtered" :key="t.tmdb_id">
+            <li v-for="r in filtered" :key="r.key">
               <button
                 type="button"
-                @click="selectedId = t.tmdb_id"
+                @click="selectedKey = r.key"
                 class="flex w-full items-baseline gap-3 rounded-lg border px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                :class="selectedId === t.tmdb_id
+                :class="selectedKey === r.key
                   ? 'border-accent bg-accent/10 text-content'
                   : 'border-border bg-surface-2/40 text-content hover:border-accent/50'"
               >
-                <span class="line-clamp-1 flex-1 text-sm">{{ t.title }}</span>
-                <span class="shrink-0 text-xs text-muted tabular-nums">{{ t.year }}</span>
-                <span class="shrink-0 text-[10px] text-muted tabular-nums">tmdb {{ t.tmdb_id }}</span>
+                <span class="line-clamp-1 flex-1 text-sm">{{ r.title }}</span>
+                <span v-if="r.subtitle" class="shrink-0 text-xs text-muted">{{ r.subtitle }}</span>
               </button>
             </li>
           </ul>

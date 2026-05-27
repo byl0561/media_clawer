@@ -73,11 +73,15 @@ class LocalBook(Book):
         alias: List[str],
         author: str,
         poster: Optional[str],
+        path: Optional[str] = None,
     ):
         self.titles = title.split("_")
         self.alias = alias
         self.author = author
         self.poster = poster
+        # 真实的本地目录路径，用于 bind-alias 端点签名后回传。前端永远拿到的是
+        # 签过名的 token，不直接看到 path；这里保留 path 是为了 service 层签名前查得到。
+        self.path = path
 
     def get_titles(self) -> List[str]:
         return [*self.titles, *self.alias]

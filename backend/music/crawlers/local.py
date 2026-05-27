@@ -34,7 +34,7 @@ def process_dir(path: str):
     if len(cover_files) > 0:
         poster = "/v1/albums/cover/" + cover_files[0].replace(conf.MUSIC_ROOT, "")
 
-    return LocalAlbum(title, alias, artist, year, poster)
+    return LocalAlbum(title, alias, artist, year, poster, path=path)
 
 
 def crawl_local(root: str) -> list:

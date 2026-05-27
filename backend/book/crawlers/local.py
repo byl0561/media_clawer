@@ -36,7 +36,8 @@ def process_file(path: str):
     if len(cover_files) > 0:
         poster = "/v1/books/cover/" + cover_files[0].replace(conf.BOOK_ROOT, "")
 
-    return LocalBook(title, alias, author, poster)
+    # 书的"目录"是 file 所在的父目录（calibre 标准 3 层：作者/书名 (ID)/书 - 作者.ext）
+    return LocalBook(title, alias, author, poster, path=root)
 
 
 def crawl_local(root: str) -> list:
