@@ -12,8 +12,9 @@ from core import conf, scanning
 from movie.models import LocalMovie, MovieSet, Rate
 
 # MoviePilot 默认命名：xxx (YYYY).nfo（位于 xxx (YYYY)/ 目录下）
+# 也接受 xxx (YYYY) - 720p.nfo / xxx (YYYY) [1080p].nfo 等带版本后缀的变体
 # tinyMediaManager 默认命名：movie.nfo
-_MP_MOVIE_NFO_RE = re.compile(r".*\(\d{4}\)\.nfo$")
+_MP_MOVIE_NFO_RE = re.compile(r".*\(\d{4}\).*\.nfo$")
 
 
 def file_filter(file: str) -> bool:
@@ -42,12 +43,22 @@ def process_file(path: str):
     )
     year = int(root_element.find("year").text)
     country_list = [country.text for country in root_element.findall("country")]
+    # MoviePilot 有的版本只写顶层 <rating>，没有 tmm 那套 <ratings><rating name="themoviedb">...
+    # 评分回退到顶层 <rating>；votes 缺失时记 0，避免整份 NFO 因投票数缺失被跳过。
+    tmm_rating = root_element.find("./ratings/rating[@name='themoviedb']/value")
     tmdb_score = float(
-        root_element.find("./ratings/rating[@name='themoviedb']/value").text
+        tmm_rating.text
+        if tmm_rating is not None
+        else root_element.find("rating").text
     )
-    tmdb_votes = int(
-        root_element.find("./ratings/rating[@name='themoviedb']/votes").text
-    )
+    tmm_votes = root_element.find("./ratings/rating[@name='themoviedb']/votes")
+    flat_votes = root_element.find("votes")
+    if tmm_votes is not None:
+        tmdb_votes = int(tmm_votes.text)
+    elif flat_votes is not None:
+        tmdb_votes = int(flat_votes.text)
+    else:
+        tmdb_votes = 0
     tmdb_id = int(root_element.find("./uniqueid[@type='tmdb']").text)
     tmdb_set_id = (
         int(root_element.find("./uniqueid[@type='tmdbSet']").text)

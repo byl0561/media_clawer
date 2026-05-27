@@ -33,11 +33,16 @@ def process_file(path: str):
         if root_element.find("rating") is not None
         else float(root_element.find("./ratings/rating[@name='themoviedb']/value").text)
     )
-    tmdb_votes = (
-        int(root_element.find("votes").text)
-        if root_element.find("votes") is not None
-        else int(root_element.find("./ratings/rating[@name='themoviedb']/votes").text)
-    )
+    # MoviePilot 有的版本只写顶层 <rating>，没有 <votes>，也没有 tmm 的 <ratings> 嵌套块。
+    # votes 完全缺失时记 0，避免整份 NFO 因此被跳过。
+    flat_votes = root_element.find("votes")
+    tmm_votes = root_element.find("./ratings/rating[@name='themoviedb']/votes")
+    if flat_votes is not None:
+        tmdb_votes = int(flat_votes.text)
+    elif tmm_votes is not None:
+        tmdb_votes = int(tmm_votes.text)
+    else:
+        tmdb_votes = 0
     tmdb_id = int(root_element.find("./uniqueid[@type='tmdb']").text)
 
     poster = None
@@ -79,7 +84,10 @@ def process_file(path: str):
                         else None
                     )
                 )
-                run_minus = int(tree.find("runtime").text)
+                # MoviePilot 的剧集 nfo 不写 <runtime>；缺失记 0，
+                # 该字段只是透传到模型字段，前端没有依赖。
+                runtime_el = tree.find("runtime")
+                run_minus = int(runtime_el.text) if runtime_el is not None else 0
 
                 episodes = season_num_2_episodes.get(season_num, [])
                 episodes.append(
