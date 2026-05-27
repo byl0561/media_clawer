@@ -22,7 +22,7 @@ from tvshow.crawlers.douban import crawl_dou_list
 from tvshow.crawlers.local import crawl_local, process_file
 from tvshow.crawlers.tmdb import get_tmdb_tv_show, get_tmdb_tv_show_season
 from tvshow.matching import combine_tv_show, get_missing_tv_shows
-from tvshow.models import TvShow
+from tvshow.models import Rate, TvShow
 from tvshow.serializers import SeasonSerializer, TvShowSerializer
 
 _DOULIST_ALL = "https://www.douban.com/doulist/116238969/"
@@ -39,6 +39,26 @@ def _is_retained_tv_show(tv_show: TvShow) -> bool:
 def _is_retained_anime(tv_show: TvShow) -> bool:
     rate = tv_show.get_rate()
     return rate.score > 8.5 and rate.votes > 500
+
+
+def _enrich_local_shows(shows: list) -> None:
+    """Backfill TMDB ``votes`` for NFOs that omit them.
+
+    MoviePilot's ``tvshow.nfo`` ships only a flat ``<rating>`` with no
+    ``<votes>``; the parser defaults to 0, which makes ``_is_retained_*`` trip
+    on every dropped-out rank entry. ``/tv/{id}`` is already cached and
+    pre-warmed by :func:`refresh_all`'s :func:`_flush_tmdb`, so this is a
+    cache hit on the warm path.
+    """
+    for show in shows:
+        if show.tmdb_rate.votes != 0:
+            continue
+        tmdb_show = get_tmdb_tv_show(show.tmdb_id)
+        if tmdb_show is None:
+            continue
+        show.tmdb_rate = Rate(
+            show.tmdb_rate.score, tmdb_show.get_rate().votes, "TMDB"
+        )
 
 
 def _legal_season(season) -> bool:
@@ -75,14 +95,18 @@ def tv_diff() -> dict:
     )
     if not douban_tv_shows:
         raise UpstreamUnavailable()
-    return _diff(douban_tv_shows, crawl_local(conf.TV_ROOT), _is_retained_tv_show)
+    local_shows = crawl_local(conf.TV_ROOT)
+    _enrich_local_shows(local_shows)
+    return _diff(douban_tv_shows, local_shows, _is_retained_tv_show)
 
 
 def anime_diff() -> dict:
     bangumi_shows = crawl_bangumi_tv_show_80()
     if not bangumi_shows:
         raise UpstreamUnavailable()
-    return _diff(bangumi_shows, crawl_local(conf.ANIME_ROOT), _is_retained_anime)
+    local_shows = crawl_local(conf.ANIME_ROOT)
+    _enrich_local_shows(local_shows)
+    return _diff(bangumi_shows, local_shows, _is_retained_anime)
 
 
 def local_gaps(library: str) -> list:

@@ -15,15 +15,47 @@ from core.aliases import append_unique_aliases
 from core.exceptions import ShowNotFound, UpstreamUnavailable
 from movie.crawlers.douban import crawl_douban_250
 from movie.crawlers.local import crawl_local, file_filter
-from movie.crawlers.tmdb import get_tmdb_movies_in_set
+from movie.crawlers.tmdb import get_tmdb_movie, get_tmdb_movies_in_set
 from movie.matching import get_extra_movies, get_missing_movies
-from movie.models import Movie, TmdbMovie
+from movie.models import Movie, Rate, TmdbMovie
 from movie.serializers import MovieSerializer
 
 
 def _is_retained(movie: Movie) -> bool:
     rate = movie.get_rate()
     return rate.score > 7.5 and rate.votes > 500
+
+
+def _enrich_local_movies(movies: list) -> None:
+    """Backfill TMDB votes / collection for NFOs that omit them.
+
+    MoviePilot's NFO emits only a flat ``<rating>`` and no ``<set>`` /
+    ``<uniqueid type="tmdbSet">``. Without ``votes`` ``_is_retained`` trips on
+    every dropped-out Top250 entry (votes=0 < 500), and without the
+    collection name the sequel-tied carry-over in ``get_extra_movies`` /
+    ``diff`` can't roll up. One ``/movie/{id}`` call per gap fills both —
+    served from cache when ``refresh_all`` has warmed it.
+    """
+    for movie in movies:
+        needs_votes = movie.tmdb_rate.votes == 0
+        needs_set = movie.tmdb_set.set_id is None
+        if not (needs_votes or needs_set):
+            continue
+        tmdb_movie = get_tmdb_movie(movie.tmdb_id)
+        if tmdb_movie is None:
+            continue
+        if needs_votes:
+            movie.tmdb_rate = Rate(
+                movie.tmdb_rate.score, tmdb_movie.get_rate().votes, "TMDB"
+            )
+        if needs_set and tmdb_movie.move_set.set_id is not None:
+            movie.tmdb_set = tmdb_movie.move_set
+
+
+def _local_movies() -> list:
+    movies = crawl_local(conf.MOVIE_ROOT)
+    _enrich_local_movies(movies)
+    return movies
 
 
 def _legal_movie(movie: TmdbMovie) -> bool:
@@ -43,7 +75,7 @@ def diff() -> dict:
     douban_movies = crawl_douban_250()
     if not douban_movies:
         raise UpstreamUnavailable()
-    local_movies = crawl_local(conf.MOVIE_ROOT)
+    local_movies = _local_movies()
 
     missing_movies = get_missing_movies(douban_movies, local_movies)
     extra_movies = get_extra_movies(douban_movies, local_movies)
@@ -70,7 +102,7 @@ def collection_gaps() -> list:
 
     -> [{"collection": <name>, "missing": [<movie>, ...]}, ...]
     """
-    local_movies = crawl_local(conf.MOVIE_ROOT)
+    local_movies = _local_movies()
 
     existing_movie_sets: dict = {}
     for movie in local_movies:
@@ -99,11 +131,14 @@ def collection_gaps() -> list:
 def refresh_all() -> None:
     """Repopulate the upstream Douban / TMDB caches (used by cron)."""
     crawl_douban_250(cache=False)
-    set_ids = {
-        m.tmdb_set.set_id
-        for m in crawl_local(conf.MOVIE_ROOT)
-        if m.tmdb_set.set_id is not None
-    }
+    movies = crawl_local(conf.MOVIE_ROOT)
+    # Force-refresh /movie/{id} only for NFOs missing fields we backfill;
+    # tmm NFOs already carry votes + tmdbSet so the extra call would be waste.
+    for m in movies:
+        if m.tmdb_rate.votes == 0 or m.tmdb_set.set_id is None:
+            get_tmdb_movie(m.tmdb_id, cache=False)
+    _enrich_local_movies(movies)
+    set_ids = {m.tmdb_set.set_id for m in movies if m.tmdb_set.set_id is not None}
     for set_id in set_ids:
         get_tmdb_movies_in_set(set_id, cache=False)
 
@@ -140,7 +175,7 @@ def _find_movie_dir(tmdb_id: int) -> Optional[str]:
 def alias_targets() -> list:
     """All local movies usable as bind targets for a missing rank item."""
     targets = []
-    for local in crawl_local(conf.MOVIE_ROOT):
+    for local in crawl_local(conf.MOVIE_ROOT):  # no enrichment needed; only metadata read
         targets.append(
             {
                 "tmdb_id": local.tmdb_id,
