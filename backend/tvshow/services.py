@@ -22,7 +22,7 @@ from tvshow.crawlers.douban import crawl_dou_list
 from tvshow.crawlers.local import crawl_local, process_file
 from tvshow.crawlers.tmdb import get_tmdb_tv_show, get_tmdb_tv_show_season
 from tvshow.matching import combine_tv_show, get_missing_tv_shows
-from tvshow.models import Rate, TvShow
+from tvshow.models import TvShow
 from tvshow.serializers import SeasonSerializer, TvShowSerializer
 
 _DOULIST_ALL = "https://www.douban.com/doulist/116238969/"
@@ -33,32 +33,32 @@ _LIBRARY_ROOT = {"tv": conf.TV_ROOT, "anime": conf.ANIME_ROOT}
 
 def _is_retained_tv_show(tv_show: TvShow) -> bool:
     rate = tv_show.get_rate()
-    return rate.score > 8.0 and rate.votes > 50
+    # 200 votes ≈ TMDB /tv/top_rated lower tail; tighter than /movie/top_rated's
+    # 300 because TV samples themselves are smaller.
+    return rate.score > 7.5 and rate.votes > 200
 
 
 def _is_retained_anime(tv_show: TvShow) -> bool:
     rate = tv_show.get_rate()
-    return rate.score > 8.5 and rate.votes > 500
+    # Same 300-vote floor as movies. TMDB anime tends to score lower than
+    # Bangumi/MAL even for genre staples, so 7.5 is already lenient.
+    return rate.score > 7.5 and rate.votes > 300
 
 
 def _enrich_local_shows(shows: list) -> None:
-    """Backfill TMDB ``votes`` for NFOs that omit them.
+    """Replace each local show's TMDB rate with live ``/tv/{id}``.
 
-    MoviePilot's ``tvshow.nfo`` ships only a flat ``<rating>`` with no
-    ``<votes>``; the parser defaults to 0, which makes ``_is_retained_*`` trip
-    on every dropped-out rank entry. ``/tv/{id}`` is already cached and
-    pre-warmed by :func:`refresh_all`'s :func:`_flush_tmdb`, so this is a
-    cache hit on the warm path.
+    MoviePilot's ``tvshow.nfo`` omits ``<votes>`` (parser defaults to 0) and
+    even tmm's is a scrape-time snapshot that drifts from current TMDB. The
+    retention check rides current-TMDB, so we always pull fresh — cache-hit
+    on the warm path since :func:`refresh_all`'s :func:`_flush_tmdb` pre-
+    warms ``/tv/{id}`` per show.
     """
     for show in shows:
-        if show.tmdb_rate.votes != 0:
-            continue
         tmdb_show = get_tmdb_tv_show(show.tmdb_id)
         if tmdb_show is None:
             continue
-        show.tmdb_rate = Rate(
-            show.tmdb_rate.score, tmdb_show.get_rate().votes, "TMDB"
-        )
+        show.tmdb_rate = tmdb_show.get_rate()
 
 
 def _legal_season(season) -> bool:
