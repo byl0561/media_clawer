@@ -1,6 +1,14 @@
-import type {MediaItem, MediaItemGroupData} from "@/types";
+import type {MediaItem, MediaItemGroupData, SeriesGroupData, SeriesPoster, SeriesRow} from "@/types";
 import type {ApiResult} from "@/http/client";
-import type {BindLibrary, IgnoreLibrary, LocalGap, MediaItemDTO} from "@/types/api";
+import type {
+    BindLibrary,
+    IgnoreLibrary,
+    IncompleteSeason,
+    MediaItemDTO,
+    MovieSeriesGap,
+    SeasonRef,
+    ShowSeriesGap,
+} from "@/types/api";
 
 export type Loader<T> = () => Promise<ApiResult<T>>;
 
@@ -59,25 +67,86 @@ export function buildGroup<T>(
     });
 }
 
-/** Build the "续集" tab from a `local-gaps` payload (shared by tv & anime). */
-export function buildLocalGapGroup(
-    load: Loader<LocalGap[]>,
+// --- 续集 tab builders --------------------------------------------------
+
+function moviePoster(item: MediaItemDTO): SeriesPoster {
+    return {title: item.title, poster: item.poster, link: item.link};
+}
+
+function seasonPoster(season: SeasonRef): SeriesPoster {
+    return {
+        title: season.name,
+        poster: season.poster,
+        link: null,
+    };
+}
+
+function incompletePoster(
+    show: ShowSeriesGap,
+    inc: IncompleteSeason,
     library: IgnoreLibrary,
-): Promise<MediaItemGroupData> {
-    return collect(load, (gaps, items) => {
-        for (const gap of gaps) {
-            const seasons = new Set<number>();
-            for (const s of gap.missing_seasons) seasons.add(s.num);
-            for (const s of gap.incomplete_seasons) seasons.add(s.season_num);
-            const sorted = [...seasons].sort((a, b) => a - b);
-            const media = toMedia(gap.show);
-            media.title = `${media.title} - ${sorted.map((n) => `S${n}`).join(",")}`;
-            // tmdb_id drives the ignore dialog; only present for TMDB/local
-            // shows (it always is here — gap.show is the TMDB object).
-            if (gap.show.tmdb_id != null) {
-                media.ignore = {library, tmdbId: gap.show.tmdb_id};
-            }
-            items.push(media);
-        }
-    });
+): SeriesPoster {
+    // Reuse the season poster from local_seasons when we have it (the local
+    // season exists by definition for an incomplete entry); fall back to none.
+    const local = show.local_seasons.find((s) => s.num === inc.season_num);
+    const tmdbId = show.show.tmdb_id;
+    return {
+        title: `${inc.season_name} · 缺 ${inc.local_max_episode + 1}–${inc.remote_max_episode} 集`,
+        poster: local?.poster ?? null,
+        link: null,
+        ignore: tmdbId != null ? {library, tmdbId} : undefined,
+    };
+}
+
+/** Movie collection → SeriesRow. */
+export function buildMovieSeries(load: Loader<MovieSeriesGap[]>): Promise<SeriesGroupData> {
+    return collectSeries(load, (gaps) =>
+        gaps.map((gap) => ({
+            title: gap.collection_name ?? `合集 ${gap.collection_id}`,
+            link: null,
+            score: gap.score,
+            local: gap.local.map(moviePoster),
+            missing: gap.missing.map(moviePoster),
+            ignoreCollection: {collectionId: gap.collection_id},
+        })),
+    );
+}
+
+/** TV/anime show → SeriesRow (missing + incomplete seasons combined on the right). */
+export function buildShowSeries(
+    load: Loader<ShowSeriesGap[]>,
+    library: IgnoreLibrary,
+): Promise<SeriesGroupData> {
+    return collectSeries(load, (gaps) =>
+        gaps.map((gap) => {
+            const tmdbId = gap.show.tmdb_id;
+            const ignore = tmdbId != null ? {library, tmdbId} : undefined;
+            const missing: SeriesPoster[] = [
+                ...gap.missing_seasons.map((s) => ({...seasonPoster(s), ignore})),
+                ...gap.incomplete_seasons.map((inc) => incompletePoster(gap, inc, library)),
+            ];
+            return {
+                title: gap.show.title,
+                link: gap.show.link,
+                score: gap.show.score,
+                local: gap.local_seasons.map(seasonPoster),
+                missing,
+            };
+        }),
+    );
+}
+
+async function collectSeries<T>(
+    load: Loader<T>,
+    rows: (data: T) => SeriesRow[],
+): Promise<SeriesGroupData> {
+    const group: SeriesGroupData = {valid: true, rows: []};
+    const res = await load();
+    if (!res.success) {
+        group.valid = false;
+        return group;
+    }
+    if (res.data == null) return group;
+    group.rows = rows(res.data);
+    return group;
 }

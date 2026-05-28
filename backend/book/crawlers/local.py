@@ -4,6 +4,7 @@ import os
 import re
 
 from core import conf, scanning
+from core.local_config import read_config
 from book.models import LocalBook
 
 _FILE_PATTERN = re.compile(r"^(.+)\s-\s(.+)\.(\w+)")
@@ -26,10 +27,7 @@ def process_file(path: str):
     author = re.sub(r"\([^]]*\)", "", author)
     author = re.sub(r"（[^]]*）", "", author)
 
-    alias = []
-    if os.path.exists(os.path.join(root, "alias.txt")):
-        with open(os.path.join(root, "alias.txt"), "r") as f:
-            alias = f.read().splitlines()
+    alias = list(read_config(root).get("aliases") or [])
 
     poster = None
     cover_files = glob.glob(os.path.join(glob.escape(root), "cover.*"))

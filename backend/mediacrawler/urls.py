@@ -18,9 +18,14 @@ urlpatterns = [
     # Movies
     path("v1/movies/diff", movie_views.DiffView.as_view(), name="movies-diff"),
     path(
-        "v1/movies/collection-gaps",
-        movie_views.CollectionGapsView.as_view(),
-        name="movies-collection-gaps",
+        "v1/movies/series-gaps",
+        movie_views.SeriesGapsView.as_view(),
+        name="movies-series-gaps",
+    ),
+    path(
+        "v1/movies/ignore-collection",
+        movie_views.IgnoreCollectionView.as_view(),
+        name="movies-ignore-collection",
     ),
     path(
         "v1/movies/poster/<path:image_path>",
@@ -40,9 +45,9 @@ urlpatterns = [
     # TV shows
     path("v1/tv-shows/diff", tv_views.TvDiffView.as_view(), name="tv-shows-diff"),
     path(
-        "v1/tv-shows/local-gaps",
-        tv_views.TvLocalGapsView.as_view(),
-        name="tv-shows-local-gaps",
+        "v1/tv-shows/series-gaps",
+        tv_views.TvSeriesGapsView.as_view(),
+        name="tv-shows-series-gaps",
     ),
     path(
         "v1/tv-shows/poster/<path:image_path>",
@@ -72,9 +77,9 @@ urlpatterns = [
     # Anime (served by the tvshow app)
     path("v1/anime/diff", tv_views.AnimeDiffView.as_view(), name="anime-diff"),
     path(
-        "v1/anime/local-gaps",
-        tv_views.AnimeLocalGapsView.as_view(),
-        name="anime-local-gaps",
+        "v1/anime/series-gaps",
+        tv_views.AnimeSeriesGapsView.as_view(),
+        name="anime-series-gaps",
     ),
     path(
         "v1/anime/poster/<path:image_path>",

@@ -15,15 +15,15 @@ from datetime import datetime
 from typing import List, Optional, Tuple
 
 from core import conf
-from core.aliases import append_unique_aliases
 from core.exceptions import ShowNotFound, UpstreamUnavailable
+from core.local_config import add_aliases, set_season_checked
 from tvshow.crawlers.bangumi import crawl_bangumi_tv_show_80
 from tvshow.crawlers.douban import crawl_dou_list
 from tvshow.crawlers.local import crawl_local, process_file
 from tvshow.crawlers.tmdb import get_tmdb_tv_show, get_tmdb_tv_show_season
 from tvshow.matching import combine_tv_show, get_missing_tv_shows
 from tvshow.models import TvShow
-from tvshow.serializers import SeasonSerializer, TvShowSerializer
+from tvshow.serializers import TvShowSerializer
 
 _DOULIST_ALL = "https://www.douban.com/doulist/116238969/"
 _DOULIST_RECENT = "https://www.douban.com/doulist/113919174/"
@@ -109,12 +109,26 @@ def anime_diff() -> dict:
     return _diff(bangumi_shows, local_shows, _is_retained_anime)
 
 
-def local_gaps(library: str) -> list:
-    """Local shows that are missing whole seasons and/or behind on episodes.
+def _season_ref(num: int, name: str, poster: Optional[str]) -> dict:
+    return {"num": num, "name": name, "poster": poster}
 
-    -> [{"show": <show>, "missing_seasons": [{num,name}],
-         "incomplete_seasons": [{season_num,season_name,
-                                 local_max_episode,remote_max_episode}]}]
+
+def series_gaps(library: str) -> list:
+    """Per-show snapshot of local + missing + incomplete seasons.
+
+    Each entry returns enough for the frontend's left-stack / right-tile
+    layout:
+
+      [{
+          "show": <show>,                    # TMDB show w/ poster + score
+          "local_seasons":    [{num, name, poster}, ...],  # what user has
+          "missing_seasons":  [{num, name, poster}, ...],  # whole seasons gone
+          "incomplete_seasons": [...]                       # behind-on-episodes
+      }, ...]
+
+    Posters for both lists come from TMDB seasons (matched by season number);
+    local NFOs don't carry per-season images. Shows with nothing missing or
+    behind are dropped — there's nothing to surface.
     """
     result = []
     for local_tv_show in crawl_local(_LIBRARY_ROOT[library]):
@@ -122,11 +136,12 @@ def local_gaps(library: str) -> list:
         if tmdb_tv_show is None:
             continue
 
+        tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
+
         missing_seasons = [
-            SeasonSerializer(tmdb_season).data
-            for tmdb_season in tmdb_tv_show.list_seasons()
-            if local_tv_show.get_season(tmdb_season.num) is None
-            and _legal_season(tmdb_season)
+            _season_ref(s.num, s.name, s.poster)
+            for s in tmdb_tv_show.list_seasons()
+            if local_tv_show.get_season(s.num) is None and _legal_season(s)
         ]
 
         incomplete_seasons = []
@@ -150,14 +165,26 @@ def local_gaps(library: str) -> list:
                     }
                 )
 
-        if missing_seasons or incomplete_seasons:
-            result.append(
-                {
-                    "show": TvShowSerializer(tmdb_tv_show).data,
-                    "missing_seasons": missing_seasons,
-                    "incomplete_seasons": incomplete_seasons,
-                }
+        if not missing_seasons and not incomplete_seasons:
+            continue
+
+        local_seasons = []
+        for num in sorted(local_tv_show.seasons.keys()):
+            tmdb_season = tmdb_seasons_by_num.get(num)
+            if tmdb_season is None:
+                continue
+            local_seasons.append(
+                _season_ref(num, tmdb_season.name, tmdb_season.poster)
             )
+
+        result.append(
+            {
+                "show": TvShowSerializer(tmdb_tv_show).data,
+                "local_seasons": local_seasons,
+                "missing_seasons": missing_seasons,
+                "incomplete_seasons": incomplete_seasons,
+            }
+        )
     return result
 
 
@@ -178,16 +205,9 @@ def refresh_all() -> None:
 
 
 # --- Ignore (skip-marker) management ------------------------------------
-# A ``Season N/checked_episode.txt`` holding one integer suppresses that
-# season (shadow season) and every episode <= the integer from the gaps.
-# These endpoints let the UI write that marker per season on demand.
-
-_SEASON_CHECK_FILE = "checked_episode.txt"
-
-
-def _season_folder_name(season_num: int) -> str:
-    """tinyMediaManager layout the local scanner parses back (no zero pad)."""
-    return "Specials" if season_num == 0 else f"Season {season_num}"
+# A per-season ``checked_episode`` cutoff in the show's ``.mediaclawer.json``
+# suppresses that season (shadow season) and every episode <= the cutoff
+# from the gap list. These endpoints let the UI write that cutoff per season.
 
 
 def _find_show_dir(root: str, tmdb_id: int) -> Optional[str]:
@@ -275,15 +295,13 @@ def ignore_options(library: str, tmdb_id: int) -> dict:
 
 
 def ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
-    """Write ``checked_episode.txt`` for each selected season.
+    """Persist per-season ``checked_episode`` cutoffs to the show's JSON.
 
-    ``selections`` is ``[{"season_num": int, "episode": int}, ...]``. The
-    season folder is created when absent and the marker overwritten when
-    present (both states handled). ``fully_ignored`` is true iff every
-    still-missing season was selected at/beyond its latest offered episode —
-    the frontend uses it to close the poster without waiting for a rescan.
+    ``selections`` is ``[{"season_num": int, "episode": int}, ...]``.
+    ``fully_ignored`` is true iff every still-missing season was selected at
+    or beyond its latest offered episode — the frontend uses it to close the
+    poster without waiting for a rescan.
     """
-    root = _LIBRARY_ROOT[library]
     show_dir, _title, gap_seasons = _gap_seasons(library, tmdb_id)
     if show_dir is None:
         raise ShowNotFound()
@@ -294,18 +312,10 @@ def ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
         for g in gap_seasons
     )
 
-    base = os.path.realpath(root)
     for season_num, episode in chosen.items():
         if episode < 0:
             continue
-        folder = os.path.realpath(
-            os.path.join(show_dir, _season_folder_name(season_num))
-        )
-        if folder != base and not folder.startswith(base + os.sep):
-            continue
-        os.makedirs(folder, exist_ok=True)
-        with open(os.path.join(folder, _SEASON_CHECK_FILE), "w") as fh:
-            fh.write(f"{episode}\n")
+        set_season_checked(show_dir, season_num, episode)
 
     return {"fully_ignored": fully_ignored}
 
@@ -339,7 +349,7 @@ def alias_targets(library: str) -> list:
 
 
 def alias_bind(library: str, tmdb_id: int, aliases: List[str]) -> dict:
-    """Append ``aliases`` to the matched show's ``alias.txt``.
+    """Append ``aliases`` to the show's ``.mediaclawer.json``.
 
     -> ``{bound: bool, added: int}``. ``added`` is the dedup'd count; bind
     is idempotent so re-clicking the same rank item is a no-op.
@@ -354,5 +364,5 @@ def alias_bind(library: str, tmdb_id: int, aliases: List[str]) -> dict:
     if target != base and not target.startswith(base + os.sep):
         raise ShowNotFound()
 
-    added = append_unique_aliases(target, aliases)
+    added = add_aliases(target, aliases)
     return {"bound": True, "added": added}

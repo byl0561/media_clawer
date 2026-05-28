@@ -2,7 +2,7 @@
 
 import type {BindLibrary, IgnoreLibrary} from "@/types/api";
 
-/** Set only on TV/anime 续集 items: enables the per-poster ignore action. */
+/** Set only on TV/anime 续集 right-side tiles: opens the per-show ignore dialog. */
 export interface IgnoreRef {
     library: IgnoreLibrary;
     tmdbId: number;
@@ -29,9 +29,41 @@ export interface MediaItemGroupData {
     mediaItems: MediaItem[];
 }
 
+/** A poster on the series-gap card (left stack or right tile). */
+export interface SeriesPoster {
+    /** Hover label (movie title / "Season N" / "Season N · 缺 m-n 集"). */
+    title: string;
+    poster: string | null;
+    link: string | null;
+    /** Set on right-side TV/anime tiles to open the per-season ignore dialog. */
+    ignore?: IgnoreRef;
+}
+
+/** One row in the 续集 list: a movie collection or a TV/anime show. */
+export interface SeriesRow {
+    /** Display title (collection name / show title). */
+    title: string;
+    link: string | null;
+    /** Vote-weighted collection score / show's own TMDB score. */
+    score: number | null;
+    local: SeriesPoster[];
+    missing: SeriesPoster[];
+    /** Only set on the movie variant — triggers the confirm + ignore-collection POST. */
+    ignoreCollection?: {
+        collectionId: number;
+    };
+}
+
+export interface SeriesGroupData {
+    valid: boolean;
+    rows: SeriesRow[];
+}
+
+/** A tab returns either the flat item list or the series-card list. */
 export interface MediaItemFunctionGroup {
     name: string;
-    acquireData: () => Promise<MediaItemGroupData>;
+    acquireData?: () => Promise<MediaItemGroupData>;
+    acquireSeries?: () => Promise<SeriesGroupData>;
 }
 
 export interface MediaGroup {

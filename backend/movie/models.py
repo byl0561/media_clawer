@@ -91,6 +91,8 @@ class LocalMovie(Movie):
         tmdb_id: int,
         tmdb_set: MovieSet,
         alias: Optional[List[str]] = None,
+        path: Optional[str] = None,
+        skip_collections: Optional[List[int]] = None,
     ):
         self.title = title
         self.original_title = original_title
@@ -101,6 +103,10 @@ class LocalMovie(Movie):
         self.tmdb_id = tmdb_id
         self.tmdb_set = tmdb_set
         self.alias = alias or []
+        # Absolute path of the movie folder (where .mediaclawer.json lives);
+        # services use this when writing per-movie skip_collections entries.
+        self.path = path
+        self.skip_collections = set(skip_collections or [])
 
     def get_titles(self) -> List[str]:
         return [self.title, self.original_title, *self.alias]

@@ -216,6 +216,7 @@ class LocalTvShow(TvShow):
         tmdb_id: int,
         seasons: List[LocalSeason],
         shadow_seasons: List[LocalShadowSeason],
+        path: Optional[str] = None,
     ):
         self.title = title
         self.original_title = original_title
@@ -227,6 +228,8 @@ class LocalTvShow(TvShow):
         self.seasons = {season.num: season for season in seasons}
         self.max_season = seasons[-1].num if seasons else 0
         self.shadow_seasons = {season.num: season for season in shadow_seasons}
+        # Absolute path of the show folder (where .mediaclawer.json lives).
+        self.path = path
 
     def get_titles(self) -> List[str]:
         return [self.title, self.original_title, *self.alias]
@@ -286,12 +289,14 @@ class TmdbSeason(Season):
         name: str,
         date: Optional[str],
         episodes: List[TmdbEpisode],
+        poster: Optional[str] = None,
     ):
         super().__init__(num, name)
         self.date = date
         self.episodes = {episode.num: episode for episode in episodes}
         self.max_episode = episodes[-1].num if len(episodes) > 0 else 0
         self.min_episode = episodes[0].num if len(episodes) > 0 else 0
+        self.poster = (TMDB_IMAGE_PATH + poster) if poster else None
 
     def get_episode(self, episode_num: int) -> Optional[TmdbEpisode]:
         return self.episodes.get(episode_num)

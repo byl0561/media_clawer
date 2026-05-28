@@ -26,7 +26,7 @@ export interface MovieItem extends MediaItemDTO {
 
 export interface ShowItem extends MediaItemDTO {
     year: number[];
-    /** Present for TMDB/local shows (local-gaps); null for Douban/Bangumi. */
+    /** Present for TMDB/local shows (series-gaps); null for Douban/Bangumi. */
     tmdb_id: number | null;
 }
 
@@ -44,14 +44,22 @@ export interface Diff<T> {
     extra: T[];
 }
 
-export interface CollectionGap {
-    collection: string;
+/** `GET /api/v1/movies/series-gaps` row. */
+export interface MovieSeriesGap {
+    collection_id: number;
+    collection_name: string | null;
+    /** Vote-weighted score across every TMDB member of the collection. */
+    score: number | null;
+    votes: number;
+    local: MovieItem[];
     missing: MovieItem[];
 }
 
+/** One season identifier + display fields (poster + chinese name). */
 export interface SeasonRef {
     num: number;
     name: string;
+    poster: string | null;
 }
 
 export interface IncompleteSeason {
@@ -61,8 +69,10 @@ export interface IncompleteSeason {
     remote_max_episode: number;
 }
 
-export interface LocalGap {
+/** `GET /api/v1/{tv-shows,anime}/series-gaps` row. */
+export interface ShowSeriesGap {
     show: ShowItem;
+    local_seasons: SeasonRef[];
     missing_seasons: SeasonRef[];
     incomplete_seasons: IncompleteSeason[];
 }
@@ -100,6 +110,11 @@ export interface IgnoreSelection {
 export interface IgnoreResult {
     /** True iff every gap season was selected at its latest episode. */
     fully_ignored: boolean;
+}
+
+export interface IgnoreCollectionResult {
+    /** How many local movies now carry this collection id in skip_collections. */
+    updated: number;
 }
 
 /** One row of `/{movies,tv-shows,anime}/alias-targets` (id-keyed). */

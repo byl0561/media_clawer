@@ -24,9 +24,12 @@ class TvShowSerializer(RatedMediaSerializer):
         return getattr(obj, "tmdb_id", None)
 
 
-class SeasonSerializer(serializers.Serializer):
+class SeasonRefSerializer(serializers.Serializer):
+    """One season identifier + display fields (poster + chinese name)."""
+
     num = serializers.IntegerField()
     name = serializers.CharField()
+    poster = serializers.CharField(allow_null=True, required=False)
 
 
 class IncompleteSeasonSerializer(serializers.Serializer):
@@ -43,11 +46,12 @@ class ShowDiffSerializer(serializers.Serializer):
     extra = TvShowSerializer(many=True)
 
 
-class LocalGapSerializer(serializers.Serializer):
-    """One element of `GET /api/v1/{tv-shows,anime}/local-gaps` (a list)."""
+class SeriesGapSerializer(serializers.Serializer):
+    """One element of `GET /api/v1/{tv-shows,anime}/series-gaps` (a list)."""
 
     show = TvShowSerializer()
-    missing_seasons = SeasonSerializer(many=True)
+    local_seasons = SeasonRefSerializer(many=True)
+    missing_seasons = SeasonRefSerializer(many=True)
     incomplete_seasons = IncompleteSeasonSerializer(many=True)
 
 

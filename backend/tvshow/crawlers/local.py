@@ -7,6 +7,7 @@ import os
 import xml.etree.ElementTree as ET
 
 from core import conf, scanning
+from core.local_config import read_config
 from tvshow.models import LocalEpisode, LocalSeason, LocalShadowSeason, LocalTvShow, Rate
 
 
@@ -54,10 +55,26 @@ def process_file(path: str):
         elif poster.startswith(conf.ANIME_ROOT):
             poster = "/v1/anime/poster/" + poster.replace(conf.ANIME_ROOT, "")
 
-    alias = []
-    if os.path.exists(os.path.join(root, "alias.txt")):
-        with open(os.path.join(root, "alias.txt"), "r") as f:
-            alias = f.read().splitlines()
+    # Per-folder user config (aliases for fuzzy match + per-season
+    # ``checked_episode`` cutoffs that suppress outstanding-episode gaps).
+    # On first read, legacy ``alias.txt`` and ``Season N/checked_episode.txt``
+    # files in this folder are migrated into the JSON and deleted.
+    config = read_config(root)
+    alias = list(config.get("aliases") or [])
+
+    shadow_episodes = []
+    for season_str, season_cfg in (config.get("seasons") or {}).items():
+        try:
+            num = int(season_str)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(season_cfg, dict):
+            continue
+        checked = season_cfg.get("checked_episode")
+        if not isinstance(checked, int):
+            continue
+        name = "Specials" if num == 0 else f"Season {num}"
+        shadow_episodes.append(LocalShadowSeason(num, name, checked))
 
     num_2_season_name = {}
     for child in root_element:
@@ -65,54 +82,35 @@ def process_file(path: str):
             num_2_season_name[int(child.attrib["number"])] = child.text
 
     season_num_2_episodes = {}
-    shadow_episodes = []
     for child, _dirs, files in os.walk(root):
         for file in files:
-            if file != "tvshow.nfo" and file != "season.nfo" and file.endswith(".nfo"):
-                if "PART" in file or "part" in file:
-                    continue
-                tree = ET.parse(os.path.join(child, file))
-                season_num = int(tree.find("season").text)
-                episode_num = int(tree.find("episode").text)
-                episode_title = tree.find("title").text
-                episode_date = (
-                    tree.find("premiered").text
-                    if tree.find("premiered") is not None
-                    else (
-                        tree.find("aired").text
-                        if tree.find("aired") is not None
-                        else None
-                    )
+            if file == "tvshow.nfo" or file == "season.nfo" or not file.endswith(".nfo"):
+                continue
+            if "PART" in file or "part" in file:
+                continue
+            tree = ET.parse(os.path.join(child, file))
+            season_num = int(tree.find("season").text)
+            episode_num = int(tree.find("episode").text)
+            episode_title = tree.find("title").text
+            episode_date = (
+                tree.find("premiered").text
+                if tree.find("premiered") is not None
+                else (
+                    tree.find("aired").text
+                    if tree.find("aired") is not None
+                    else None
                 )
-                # MoviePilot 的剧集 nfo 不写 <runtime>；缺失记 0，
-                # 该字段只是透传到模型字段，前端没有依赖。
-                runtime_el = tree.find("runtime")
-                run_minus = int(runtime_el.text) if runtime_el is not None else 0
+            )
+            # MoviePilot 的剧集 nfo 不写 <runtime>；缺失记 0，
+            # 该字段只是透传到模型字段，前端没有依赖。
+            runtime_el = tree.find("runtime")
+            run_minus = int(runtime_el.text) if runtime_el is not None else 0
 
-                episodes = season_num_2_episodes.get(season_num, [])
-                episodes.append(
-                    LocalEpisode(episode_num, episode_title, episode_date, run_minus)
-                )
-                season_num_2_episodes[season_num] = episodes
-
-            elif file == "checked_episode.txt":
-                with open(os.path.join(child, "checked_episode.txt"), "r") as f:
-                    checked_episode = int(f.readline())
-                season_folder_name = child.split("/")[-1]
-
-                # tmm 默认用 "Specials" 命名第 0 季；MoviePilot 默认用 "Season 0"。
-                # 两者都规范化为 Specials 语义，保持下游展示一致。
-                if season_folder_name in ("Specials", "Season 0"):
-                    shadow_episodes.append(
-                        LocalShadowSeason(0, "Specials", checked_episode)
-                    )
-                else:
-                    season_num = int(season_folder_name.replace("Season ", ""))
-                    shadow_episodes.append(
-                        LocalShadowSeason(
-                            season_num, season_folder_name, checked_episode
-                        )
-                    )
+            episodes = season_num_2_episodes.get(season_num, [])
+            episodes.append(
+                LocalEpisode(episode_num, episode_title, episode_date, run_minus)
+            )
+            season_num_2_episodes[season_num] = episodes
 
     seasons = []
     for season_num, episodes in season_num_2_episodes.items():
@@ -132,6 +130,7 @@ def process_file(path: str):
         tmdb_id,
         seasons,
         shadow_episodes,
+        path=root,
     )
 
 

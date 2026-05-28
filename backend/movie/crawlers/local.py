@@ -9,6 +9,7 @@ import re
 import xml.etree.ElementTree as ET
 
 from core import conf, scanning
+from core.local_config import read_config
 from movie.models import LocalMovie, MovieSet, Rate
 
 # MoviePilot 默认命名：xxx (YYYY).nfo（位于 xxx (YYYY)/ 目录下）
@@ -81,12 +82,11 @@ def process_file(path: str):
         poster = cover_files[0].replace(conf.MOVIE_ROOT, "")
         poster = f"/v1/movies/poster/{poster}"
 
-    # 可选的中文别名补充：TMDB 没收录中文翻译的片（日剧/韩剧/小众片）
-    # 在媒体目录手动建 alias.txt，每行一个别名，让榜单文本匹配能命中。
-    alias = []
-    if os.path.exists(os.path.join(root, "alias.txt")):
-        with open(os.path.join(root, "alias.txt"), "r") as f:
-            alias = f.read().splitlines()
+    # Per-folder user config: aliases (chinese supplements for fuzzy match)
+    # and skip_collections (TMDB collection IDs the user has dismissed).
+    config = read_config(root)
+    alias = list(config.get("aliases") or [])
+    skip_collections = list(config.get("skip_collections") or [])
 
     return LocalMovie(
         title,
@@ -98,6 +98,8 @@ def process_file(path: str):
         tmdb_id,
         MovieSet(tmdb_set_id, tmdb_set_name, "TMDB"),
         alias=alias,
+        path=root,
+        skip_collections=skip_collections,
     )
 
 

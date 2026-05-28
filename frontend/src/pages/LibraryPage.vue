@@ -1,17 +1,38 @@
 <script setup lang="ts">
 import {computed, onMounted, ref, watch} from "vue";
 import {useRoute} from "vue-router";
-import type {MediaItem, MediaItemGroupData} from "@/types";
+import type {MediaItem, MediaItemFunctionGroup, MediaItemGroupData, SeriesGroupData, SeriesRow} from "@/types";
 import {useMediaCatalog} from "@/stores/mediaCatalog";
 import SegmentedTabs from "@/components/SegmentedTabs.vue";
 import PosterGrid from "@/components/PosterGrid.vue";
+import SeriesList from "@/components/SeriesList.vue";
 import SkeletonGrid from "@/components/SkeletonGrid.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import ErrorState from "@/components/ErrorState.vue";
 
-interface TabState {
+// Two tab kinds coexist: legacy flat poster grid (最新/过时) and the new
+// series-card list (续集). Each tab is tagged by which one its data matches.
+interface ItemsState {
+  kind: "items";
   status: "loading" | "ok" | "error";
   data: MediaItemGroupData | null;
+}
+interface SeriesState {
+  kind: "series";
+  status: "loading" | "ok" | "error";
+  data: SeriesGroupData | null;
+}
+type TabState = ItemsState | SeriesState
+
+function tabKind(tab: MediaItemFunctionGroup): "items" | "series" {
+  return tab.acquireSeries ? "series" : "items"
+}
+
+function itemCount(state: TabState): number {
+  if (state.status !== "ok" || state.data == null) return 0
+  return state.kind === "items"
+    ? state.data.mediaItems.length
+    : state.data.rows.length
 }
 
 const route = useRoute()
@@ -29,34 +50,47 @@ const tabs = computed(() => {
     const s = states.value[i]
     return {
       name: tab.name,
-      count: s?.status === "ok" ? s.data!.mediaItems.length : null,
+      count: s?.status === "ok" ? itemCount(s) : null,
     }
   })
 })
 
 const activeState = computed<TabState | undefined>(() => states.value[active.value])
 
-// Concise, polite announcement for screen readers (the poster grid itself is
-// not in a live region — that would read out every title on every change).
 const statusText = computed(() => {
   const s = activeState.value
   if (!s || s.status === "loading") return "加载中"
   if (s.status === "error") return "加载失败"
-  if (s.data!.mediaItems.length === 0) return "已与榜单同步，无需维护"
-  return `已加载 ${s.data!.mediaItems.length} 项`
+  const n = itemCount(s)
+  if (n === 0) return "已与榜单同步，无需维护"
+  return `已加载 ${n} 项`
 })
 
 async function loadTab(i: number): Promise<void> {
   const group = entry.value?.group
   if (!group) return
-  states.value[i] = {status: "loading", data: null}
-  try {
-    const data = await group.mediaItemFunctionGroups[i].acquireData()
-    states.value[i] = data.valid
-      ? {status: "ok", data}
-      : {status: "error", data: null}
-  } catch {
-    states.value[i] = {status: "error", data: null}
+  const tab = group.mediaItemFunctionGroups[i]
+  const kind = tabKind(tab)
+  if (kind === "series") {
+    states.value[i] = {kind: "series", status: "loading", data: null}
+    try {
+      const data = await tab.acquireSeries!()
+      states.value[i] = data.valid
+        ? {kind: "series", status: "ok", data}
+        : {kind: "series", status: "error", data: null}
+    } catch {
+      states.value[i] = {kind: "series", status: "error", data: null}
+    }
+  } else {
+    states.value[i] = {kind: "items", status: "loading", data: null}
+    try {
+      const data = await tab.acquireData!()
+      states.value[i] = data.valid
+        ? {kind: "items", status: "ok", data}
+        : {kind: "items", status: "error", data: null}
+    } catch {
+      states.value[i] = {kind: "items", status: "error", data: null}
+    }
   }
 }
 
@@ -67,47 +101,61 @@ async function loadAll(): Promise<void> {
     return
   }
   const tabCount = group.mediaItemFunctionGroups.length
-  states.value = Array.from({length: tabCount}, () => ({status: "loading", data: null}))
+  states.value = Array.from({length: tabCount}, (_, i) =>
+    tabKind(group.mediaItemFunctionGroups[i]) === "series"
+      ? {kind: "series", status: "loading", data: null} as TabState
+      : {kind: "items", status: "loading", data: null} as TabState,
+  )
   await Promise.all(group.mediaItemFunctionGroups.map((_, i) => loadTab(i)))
   const firstWithItems = states.value.findIndex(
-    (s) => s.status === "ok" && s.data!.mediaItems.length > 0,
+    (s) => s.status === "ok" && itemCount(s) > 0,
   )
   active.value = firstWithItems >= 0 ? firstWithItems : 0
 }
 
-// Rebuild only this media type's loaders, then reload — a failed tab can
-// retry without re-fetching the other four libraries.
 function retry(): void {
   catalog.refreshEntry(key.value)
   catalog.track(loadAll())
 }
 
-// Fully ignored: drop the card immediately (no rescan needed).
-// Partial: refetch this tab so the card's season list reflects what's left
-// — otherwise the just-ignored season would still show in the baked title.
-function onIgnored(item: MediaItem, fully: boolean): void {
+// Items-tab ignore (TV/anime "最新" / "过时" don't carry this, only the legacy
+// per-poster ignore on 续集 did; kept for backward compat with the flat list).
+function onItemIgnored(item: MediaItem, fully: boolean): void {
   if (fully) {
-    const data = activeState.value?.data
-    if (!data) return
-    const idx = data.mediaItems.indexOf(item)
-    if (idx !== -1) data.mediaItems.splice(idx, 1)
+    const s = activeState.value
+    if (!s || s.kind !== "items" || !s.data) return
+    const idx = s.data.mediaItems.indexOf(item)
+    if (idx !== -1) s.data.mediaItems.splice(idx, 1)
     return
   }
   catalog.refreshEntry(key.value)
   catalog.track(loadTab(active.value))
 }
 
-// Bound to a local item: the alias.txt write means the next diff will match
-// this rank entry, so it'll drop from "最新". Remove the card immediately
-// (cheap optimism) and also invalidate the cached diff so subsequent
-// navigations/refreshes hit a fresh response from the server.
-function onBound(item: MediaItem): void {
-  const data = activeState.value?.data
-  if (data) {
-    const idx = data.mediaItems.indexOf(item)
-    if (idx !== -1) data.mediaItems.splice(idx, 1)
+function onItemBound(item: MediaItem): void {
+  const s = activeState.value
+  if (s && s.kind === "items" && s.data) {
+    const idx = s.data.mediaItems.indexOf(item)
+    if (idx !== -1) s.data.mediaItems.splice(idx, 1)
   }
   catalog.refreshEntry(key.value)
+}
+
+// Series-tab ignore. Movie collection: always fully — drop the row. TV/anime
+// per-season: only fully drop when every gap season was ignored; otherwise
+// refetch so the surviving seasons re-render with updated tiles.
+function onSeriesIgnored(row: SeriesRow, fully: boolean): void {
+  if (fully) {
+    const s = activeState.value
+    if (s && s.kind === "series" && s.data) {
+      const idx = s.data.rows.indexOf(row)
+      if (idx !== -1) s.data.rows.splice(idx, 1)
+    }
+    catalog.refreshEntry(key.value)
+    return
+  }
+  catalog.refreshEntry(key.value)
+  catalog.track(loadTab(active.value))
 }
 
 onMounted(() => catalog.track(loadAll()))
@@ -138,12 +186,17 @@ watch(catalog.version, () => catalog.track(loadAll()))
         v-else-if="activeState.status === 'error'"
         @retry="retry"
       />
-      <EmptyState v-else-if="activeState.data!.mediaItems.length === 0" />
+      <EmptyState v-else-if="itemCount(activeState) === 0" />
       <PosterGrid
-        v-else
+        v-else-if="activeState.kind === 'items'"
         :items="activeState.data!.mediaItems"
-        @ignored="onIgnored"
-        @bound="onBound"
+        @ignored="onItemIgnored"
+        @bound="onItemBound"
+      />
+      <SeriesList
+        v-else-if="activeState.kind === 'series'"
+        :rows="activeState.data!.rows"
+        @ignored="(row, fully) => onSeriesIgnored(row, fully)"
       />
     </template>
 

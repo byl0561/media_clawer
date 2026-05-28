@@ -11,13 +11,13 @@ from datetime import datetime
 from typing import List, Optional
 
 from core import conf
-from core.aliases import append_unique_aliases
 from core.exceptions import ShowNotFound, UpstreamUnavailable
+from core.local_config import add_aliases, add_skip_collection
 from movie.crawlers.douban import crawl_douban_250
 from movie.crawlers.local import crawl_local, file_filter
 from movie.crawlers.tmdb import get_tmdb_movie, get_tmdb_movies_in_set
 from movie.matching import get_extra_movies, get_missing_movies
-from movie.models import Movie, TmdbMovie
+from movie.models import Movie, MovieSet, TmdbMovie
 from movie.serializers import MovieSerializer
 
 
@@ -26,6 +26,9 @@ def _is_retained(movie: Movie) -> bool:
     # Matches TMDB's own /movie/top_rated cutoff (votes >= 300); score ≥ 7.0
     # keeps "decent" Top250 dropouts. Lower thresholds let lucky-high noise in.
     return rate.score > 7.0 and rate.votes > 300
+
+
+_NO_SET = MovieSet(None, None, "TMDB")
 
 
 def _enrich_local_movies(movies: list) -> None:
@@ -37,13 +40,20 @@ def _enrich_local_movies(movies: list) -> None:
     always pull fresh — that way the retention threshold and the collection-
     tied carry-over both see the canonical current values regardless of NFO
     vintage. Cache-hit on the warm path since :func:`refresh_all` pre-warms.
+
+    A collection id present in the local movie's ``skip_collections`` (set
+    via ``POST /movies/ignore-collection``) is treated as no collection at
+    all — junk TMDB groupings get silenced without affecting other movies.
     """
     for movie in movies:
         tmdb_movie = get_tmdb_movie(movie.tmdb_id)
         if tmdb_movie is None:
             continue
         movie.tmdb_rate = tmdb_movie.get_rate()
-        movie.tmdb_set = tmdb_movie.move_set
+        new_set = tmdb_movie.move_set
+        if new_set.set_id is not None and new_set.set_id in movie.skip_collections:
+            new_set = _NO_SET
+        movie.tmdb_set = new_set
 
 
 def _local_movies() -> list:
@@ -91,34 +101,75 @@ def diff() -> dict:
     }
 
 
-def collection_gaps() -> list:
-    """Owned TMDB collections with entries missing locally.
+def _weighted_score(rates) -> Optional[float]:
+    """Vote-weighted average of TMDB scores, rounded to 1 decimal.
 
-    -> [{"collection": <name>, "missing": [<movie>, ...]}, ...]
+    ``sum(score*votes) / sum(votes)``. Members with 0 votes contribute
+    nothing — a lone freshly-added entry can't drag the collection score.
+    """
+    total_votes = 0
+    weighted = 0.0
+    for r in rates:
+        if r is None or r.votes <= 0:
+            continue
+        total_votes += r.votes
+        weighted += r.score * r.votes
+    if total_votes == 0:
+        return None
+    return round(weighted / total_votes, 1)
+
+
+def series_gaps() -> list:
+    """Owned TMDB collections with their local and missing members.
+
+    Each entry returns the full collection picture so the frontend can render
+    the left-stack/right-tile layout with a vote-weighted collection score:
+
+      [{
+          "collection_id": int,
+          "collection_name": str,
+          "score": float | None,   # weighted across every TMDB member
+          "votes": int,            # sum of member votes
+          "local":   [<movie>, ...],
+          "missing": [<movie>, ...]
+      }, ...]
+
+    Collections with no missing members are dropped — there's nothing to
+    surface.
     """
     local_movies = _local_movies()
 
-    existing_movie_sets: dict = {}
+    grouped: dict = {}
     for movie in local_movies:
-        tmdb_set_id = movie.tmdb_set.set_id
-        if tmdb_set_id is None:
+        set_id = movie.tmdb_set.set_id
+        if set_id is None:
             continue
-        existing_movie_sets.setdefault(tmdb_set_id, set()).add(movie.tmdb_id)
+        grouped.setdefault(set_id, []).append(movie)
 
     result = []
-    for tmdb_set_id, tmdb_ids in existing_movie_sets.items():
+    for set_id, locals_ in grouped.items():
+        members = get_tmdb_movies_in_set(set_id)
+        if not members:
+            continue
+        local_ids = {m.tmdb_id for m in locals_}
         missing = [
-            m
-            for m in get_tmdb_movies_in_set(tmdb_set_id)
-            if m.tmdb_id not in tmdb_ids and _legal_movie(m)
+            m for m in members if m.tmdb_id not in local_ids and _legal_movie(m)
         ]
-        if missing:
-            result.append(
-                {
-                    "collection": missing[0].move_set.name,
-                    "missing": _serialize(missing),
-                }
-            )
+        if not missing:
+            continue
+
+        member_rates = [m.get_rate() for m in members]
+        result.append(
+            {
+                "collection_id": set_id,
+                "collection_name": members[0].move_set.name,
+                "score": _weighted_score(member_rates),
+                "votes": sum((r.votes for r in member_rates if r is not None), 0),
+                "local": _serialize(locals_),
+                "missing": _serialize(missing),
+            }
+        )
+    result.sort(key=lambda x: x["collection_name"] or "")
     return result
 
 
@@ -179,8 +230,34 @@ def alias_targets() -> list:
     return targets
 
 
+def ignore_collection(collection_id: int) -> dict:
+    """Mark ``collection_id`` as ignored on every local movie that's in it.
+
+    The new ``skip_collections`` entry lands in each affected movie's
+    ``.mediaclawer.json``; the next diff drops the TMDB collection for those
+    movies (see :func:`_enrich_local_movies`). Idempotent — already-ignored
+    movies aren't double-counted.
+    """
+    base = os.path.realpath(conf.MOVIE_ROOT)
+    updated = 0
+    # Use enriched locals so MoviePilot NFOs (which omit <set>) still match —
+    # the live TMDB lookup fills set_id. Already-ignored movies are no-ops
+    # because the enrichment clears their tmdb_set down to None.
+    for movie in _local_movies():
+        if movie.tmdb_set.set_id != collection_id:
+            continue
+        if not movie.path:
+            continue
+        target = os.path.realpath(movie.path)
+        if target != base and not target.startswith(base + os.sep):
+            continue
+        if add_skip_collection(target, collection_id):
+            updated += 1
+    return {"updated": updated}
+
+
 def alias_bind(tmdb_id: int, aliases: List[str]) -> dict:
-    """Append ``aliases`` to the matched movie's ``alias.txt``."""
+    """Append ``aliases`` to the movie's ``.mediaclawer.json``."""
     base = os.path.realpath(conf.MOVIE_ROOT)
     movie_dir = _find_movie_dir(tmdb_id)
     if movie_dir is None:
@@ -190,5 +267,5 @@ def alias_bind(tmdb_id: int, aliases: List[str]) -> dict:
     if target != base and not target.startswith(base + os.sep):
         raise ShowNotFound()
 
-    added = append_unique_aliases(target, aliases)
+    added = add_aliases(target, aliases)
     return {"bound": True, "added": added}

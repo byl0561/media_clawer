@@ -7,7 +7,7 @@ import os
 from typing import List
 
 from core import conf
-from core.aliases import append_unique_aliases
+from core.local_config import add_aliases
 from core.exceptions import ShowNotFound, UpstreamUnavailable
 from core.identifiers import decode_local_path, encode_local_path
 from music.crawlers.douban import crawl_douban_250
@@ -64,7 +64,7 @@ def alias_targets() -> list:
 
 
 def alias_bind(token: str, aliases: List[str]) -> dict:
-    """Append ``aliases`` to the matched album's ``alias.txt``."""
+    """Append ``aliases`` to the album's ``.mediaclawer.json``."""
     try:
         path = decode_local_path(token)
     except ValueError as exc:
@@ -78,5 +78,5 @@ def alias_bind(token: str, aliases: List[str]) -> dict:
     if not os.path.isdir(target):
         raise ShowNotFound()
 
-    added = append_unique_aliases(target, aliases)
+    added = add_aliases(target, aliases)
     return {"bound": True, "added": added}

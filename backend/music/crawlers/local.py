@@ -4,6 +4,7 @@ import os
 import re
 
 from core import conf, scanning
+from core.local_config import read_config
 from music.models import LocalAlbum
 
 _DIR_PATTERN = re.compile(r"^(.+)\s-\s(.+)\s(\d{4})$")
@@ -24,10 +25,7 @@ def process_dir(path: str):
     artist = match.group(2)
     year = int(match.group(3))
 
-    alias = []
-    if os.path.exists(os.path.join(root, d, "alias.txt")):
-        with open(os.path.join(root, d, "alias.txt"), "r") as f:
-            alias = f.read().splitlines()
+    alias = list(read_config(os.path.join(root, d)).get("aliases") or [])
 
     poster = None
     cover_files = glob.glob(os.path.join(glob.escape(path), "cover.*"))

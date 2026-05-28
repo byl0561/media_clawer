@@ -16,7 +16,7 @@ from tvshow.serializers import (
     IgnoreOptionsSerializer,
     IgnoreRequestSerializer,
     IgnoreResultSerializer,
-    LocalGapSerializer,
+    SeriesGapSerializer,
     ShowDiffSerializer,
 )
 
@@ -37,24 +37,24 @@ class AnimeDiffView(APIView):
         return Response(services.anime_diff())
 
 
-class TvLocalGapsView(APIView):
-    """Local TV shows missing whole seasons and/or behind on episodes."""
+class TvSeriesGapsView(APIView):
+    """Local TV shows with their owned + missing seasons + behind-on-episodes."""
 
     @extend_schema(
-        responses=LocalGapSerializer(many=True), operation_id="tv_shows_local_gaps"
+        responses=SeriesGapSerializer(many=True), operation_id="tv_shows_series_gaps"
     )
     def get(self, request):
-        return Response(services.local_gaps("tv"))
+        return Response(services.series_gaps("tv"))
 
 
-class AnimeLocalGapsView(APIView):
-    """Local anime missing whole seasons and/or behind on episodes."""
+class AnimeSeriesGapsView(APIView):
+    """Local anime with their owned + missing seasons + behind-on-episodes."""
 
     @extend_schema(
-        responses=LocalGapSerializer(many=True), operation_id="anime_local_gaps"
+        responses=SeriesGapSerializer(many=True), operation_id="anime_series_gaps"
     )
     def get(self, request):
-        return Response(services.local_gaps("anime"))
+        return Response(services.series_gaps("anime"))
 
 
 class _IgnoreOptionsView(APIView):

@@ -11,7 +11,12 @@ from core.serializers import (
     AliasTargetSerializer,
 )
 from movie import services
-from movie.serializers import MovieCollectionGapSerializer, MovieDiffSerializer
+from movie.serializers import (
+    IgnoreCollectionRequestSerializer,
+    IgnoreCollectionResultSerializer,
+    MovieDiffSerializer,
+    MovieSeriesGapSerializer,
+)
 
 
 class DiffView(APIView):
@@ -22,15 +27,29 @@ class DiffView(APIView):
         return Response(services.diff())
 
 
-class CollectionGapsView(APIView):
-    """Owned TMDB collections that still have entries missing locally."""
+class SeriesGapsView(APIView):
+    """Owned TMDB collections with local + missing members + weighted score."""
 
     @extend_schema(
-        responses=MovieCollectionGapSerializer(many=True),
-        operation_id="movies_collection_gaps",
+        responses=MovieSeriesGapSerializer(many=True),
+        operation_id="movies_series_gaps",
     )
     def get(self, request):
-        return Response(services.collection_gaps())
+        return Response(services.series_gaps())
+
+
+class IgnoreCollectionView(APIView):
+    """Persist a "skip this collection" decision on every affected local movie."""
+
+    @extend_schema(
+        request=IgnoreCollectionRequestSerializer,
+        responses=IgnoreCollectionResultSerializer,
+        operation_id="movies_ignore_collection",
+    )
+    def post(self, request):
+        body = IgnoreCollectionRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        return Response(services.ignore_collection(body.validated_data["collection_id"]))
 
 
 class AliasTargetsView(APIView):

@@ -25,7 +25,13 @@ def get_tmdb_tv_show(tv_show_id: int, cache: bool = True) -> Optional[TmdbTvShow
 
     data = json.loads(res)
     seasons = [
-        TmdbSeason(s["season_number"], s["name"], s["air_date"], [])
+        TmdbSeason(
+            s["season_number"],
+            s["name"],
+            s["air_date"],
+            [],
+            poster=s.get("poster_path"),
+        )
         for s in data["seasons"]
     ]
     seasons = sorted(seasons, key=lambda s: s.num)

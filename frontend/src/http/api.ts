@@ -7,15 +7,16 @@ import type {
     BindLibrary,
     BookAliasTarget,
     BookItem,
-    CollectionGap,
     Diff,
+    IgnoreCollectionResult,
     IgnoreLibrary,
     IgnoreOptions,
     IgnoreResult,
     IgnoreSelection,
-    LocalGap,
     MovieItem,
+    MovieSeriesGap,
     ShowItem,
+    ShowSeriesGap,
     TmdbBindLibrary,
     TokenBindLibrary,
 } from "@/types/api";
@@ -38,14 +39,20 @@ const BIND_SEGMENT: Record<BindLibrary, string> = {
 };
 
 export const diffMovie = () => httpGet<Diff<MovieItem>>(`${V1}/movies/diff`);
-export const movieCollectionGaps = () =>
-    httpGet<CollectionGap[]>(`${V1}/movies/collection-gaps`);
+export const movieSeriesGaps = () =>
+    httpGet<MovieSeriesGap[]>(`${V1}/movies/series-gaps`);
+export const ignoreMovieCollection = (collectionId: number) =>
+    httpPost<IgnoreCollectionResult>(`${V1}/movies/ignore-collection`, {
+        collection_id: collectionId,
+    });
 
 export const diffTV = () => httpGet<Diff<ShowItem>>(`${V1}/tv-shows/diff`);
-export const tvLocalGaps = () => httpGet<LocalGap[]>(`${V1}/tv-shows/local-gaps`);
+export const tvSeriesGaps = () =>
+    httpGet<ShowSeriesGap[]>(`${V1}/tv-shows/series-gaps`);
 
 export const diffAnime = () => httpGet<Diff<ShowItem>>(`${V1}/anime/diff`);
-export const animeLocalGaps = () => httpGet<LocalGap[]>(`${V1}/anime/local-gaps`);
+export const animeSeriesGaps = () =>
+    httpGet<ShowSeriesGap[]>(`${V1}/anime/series-gaps`);
 
 export const diffAlbum = () => httpGet<Diff<AlbumItem>>(`${V1}/albums/diff`);
 export const diffBook = () => httpGet<Diff<BookItem>>(`${V1}/books/diff`);
