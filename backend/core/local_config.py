@@ -14,7 +14,7 @@ The JSON is UTF-8, indented, sorted-keyed, so users can hand-edit it.
 """
 import json
 import os
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List
 
 __all__ = [
     "CONFIG_FILE",
