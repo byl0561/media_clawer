@@ -81,13 +81,12 @@ function onIgnoreDialogDone(payload: { fullyIgnored: boolean }): void {
   emit("ignored", payload.fullyIgnored)
 }
 
-function onMissingClick(p: SeriesPoster, e: MouseEvent): void {
-  // TV/anime missing season: intercept and open the per-show ignore dialog.
-  // Movie missing: do nothing — the anchor's default navigation to TMDB runs.
-  if (p.ignore && !p.link) {
-    e.preventDefault()
-    activeIgnore.value = p
-  }
+function openIgnore(p: SeriesPoster, e: MouseEvent): void {
+  // Stop the surrounding anchor from navigating; the ignore button is a
+  // hover-overlay on top of the season tile's TMDB link.
+  e.stopPropagation()
+  e.preventDefault()
+  if (p.ignore) activeIgnore.value = p
 }
 
 // Escape closes the confirm dialog (matches IgnoreDialog's UX); mount the
@@ -243,27 +242,35 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
           <component
             v-for="(p, idx) in row.missing"
             :key="`missing-${idx}-${p.poster ?? p.title}`"
-            :is="p.link ? 'a' : (p.ignore ? 'button' : 'div')"
-            :type="p.ignore && !p.link ? 'button' : undefined"
+            :is="p.link ? 'a' : 'div'"
             :href="p.link ?? undefined"
             :target="p.link ? '_blank' : undefined"
             rel="noopener noreferrer"
-            class="group block text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
-            @click="onMissingClick(p, $event)"
+            class="group/tile block text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
           >
-            <div class="relative aspect-[2/3] overflow-hidden rounded-lg bg-surface-2 ring-1 ring-border transition group-hover:-translate-y-0.5 group-hover:shadow-md group-hover:shadow-black/40 group-hover:ring-accent/60">
+            <div class="relative aspect-[2/3] overflow-hidden rounded-lg bg-surface-2 ring-1 ring-border transition group-hover/tile:-translate-y-0.5 group-hover/tile:shadow-md group-hover/tile:shadow-black/40 group-hover/tile:ring-accent/60">
               <img
                 :src="imageUrl(p.poster)"
                 :alt="p.title"
                 loading="lazy"
                 decoding="async"
                 @error="onImgError"
-                class="h-full w-full object-cover transition group-hover:scale-105"
+                class="h-full w-full object-cover transition group-hover/tile:scale-105"
               />
               <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/0 to-transparent"></div>
               <div class="absolute left-1.5 top-1.5">
                 <RatingChip :score="p.score" />
               </div>
+              <!-- TV/anime per-season ignore (only set on missing/incomplete
+                   seasons of TV+anime rows). Hover-overlay so clicking the
+                   tile body still navigates to the TMDB season page. -->
+              <button
+                v-if="p.ignore"
+                type="button"
+                @click="openIgnore(p, $event)"
+                title="忽略缺失"
+                class="absolute right-1.5 top-1.5 rounded-md bg-black/55 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur-sm transition opacity-0 pointer-events-none hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent group-hover/tile:opacity-100 group-hover/tile:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+              >忽略</button>
               <div class="pointer-events-none absolute bottom-1 left-1.5 right-1.5 truncate text-[11px] font-medium text-white/90" :title="p.title">
                 {{ p.title }}
               </div>

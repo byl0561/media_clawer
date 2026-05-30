@@ -73,12 +73,23 @@ function moviePoster(item: MediaItemDTO): SeriesPoster {
     return {title: item.title, poster: item.poster, link: item.link, score: item.score};
 }
 
-function seasonPoster(season: SeasonRef): SeriesPoster {
+function seasonLink(tmdbId: number | null, num: number): string | null {
+    return tmdbId != null
+        ? `https://www.themoviedb.org/tv/${tmdbId}/season/${num}`
+        : null;
+}
+
+function seasonPoster(
+    season: SeasonRef,
+    tmdbId: number | null,
+    ignore?: SeriesPoster["ignore"],
+): SeriesPoster {
     return {
         title: season.name,
         poster: season.poster,
-        link: null,
+        link: seasonLink(tmdbId, season.num),
         score: season.score ?? null,
+        ignore,
     };
 }
 
@@ -94,7 +105,7 @@ function incompletePoster(
     return {
         title: `${inc.season_name} · 缺 ${inc.local_max_episode + 1}–${inc.remote_max_episode} 集`,
         poster: local?.poster ?? null,
-        link: null,
+        link: seasonLink(tmdbId, inc.season_num),
         score: local?.score ?? null,
         ignore: tmdbId != null ? {library, tmdbId} : undefined,
     };
@@ -125,14 +136,15 @@ export function buildShowSeries(
             const tmdbId = gap.show.tmdb_id;
             const ignore = tmdbId != null ? {library, tmdbId} : undefined;
             const missing: SeriesPoster[] = [
-                ...gap.missing_seasons.map((s) => ({...seasonPoster(s), ignore})),
+                ...gap.missing_seasons.map((s) => seasonPoster(s, tmdbId, ignore)),
                 ...gap.incomplete_seasons.map((inc) => incompletePoster(gap, inc, library)),
             ];
             return {
                 title: gap.show.title,
                 link: gap.show.link,
                 score: gap.show.score,
-                local: gap.local_seasons.map(seasonPoster),
+                // Local seasons stay informational; they have no ignore ref.
+                local: gap.local_seasons.map((s) => seasonPoster(s, tmdbId)),
                 missing,
             };
         }),
