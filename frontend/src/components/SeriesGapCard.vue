@@ -131,21 +131,24 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
       <RatingChip :score="row.score" />
     </header>
 
-    <!-- Body: vertically centered deck on the left, tiled grid on the right.
-         A thin divider (vertical on md+, horizontal on mobile) separates the
-         "owned" and "missing" halves so the boundary stays legible even when
-         the right grid wraps to multiple rows. -->
-    <div class="flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
-      <!-- Left: horizontal-fan stacked deck w/ hover cycle arrows -->
-      <div class="shrink-0">
+    <!-- Body: labels on top of each side (aligned at the same Y), deck and
+         grid below. The deck is vertically centered against the grid via
+         items-stretch + a flex-1 wrapper, so a tall (multi-row) grid keeps
+         the single poster floating in the middle. A thin divider separates
+         the "owned" and "missing" halves; horizontal stack on mobile. -->
+    <div class="flex flex-col gap-4 md:flex-row md:gap-5">
+      <!-- Left: header + horizontally centered deck (vertically centered in
+           the remaining column height) -->
+      <div class="shrink-0 md:flex md:flex-col">
         <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
           已有 · {{ row.local.length }} 项
         </p>
-        <!-- Container width = card slot (w-32 = 128px) + max fan (16px) so the
-             visible bounding box stays centered against the labels above and
-             below; the ◀/▶ arrows poke out into the surrounding flex gap. -->
-        <div class="group/deck relative w-36">
-          <div class="relative aspect-[2/3] w-32">
+        <div class="md:flex md:flex-1 md:flex-col md:items-center md:justify-center">
+          <!-- Container width = card slot (w-32 = 128px) + max fan (16px); the
+               slot itself is mx-auto so the single visible poster sits with
+               equal left/right padding when there's no fan to fill the gap. -->
+          <div class="group/deck relative w-36">
+            <div class="relative mx-auto aspect-[2/3] w-32">
             <!-- Decorative behind layers: fan to the right, lower z-index.
                  Render in reverse so the back-most layer is painted first. -->
             <template v-for="(p, i) in deckLayers.slice().reverse()" :key="`bg-${(deckLayers.length - 1 - i)}-${p.poster ?? p.title}`">
@@ -220,9 +223,10 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
             </svg>
           </button>
 
-          <p v-if="canCycle" class="mt-2 text-center text-xs tabular-nums text-muted">
-            {{ topIndex + 1 }} / {{ row.local.length }}
-          </p>
+            <p v-if="canCycle" class="mt-2 text-center text-xs tabular-nums text-muted">
+              {{ topIndex + 1 }} / {{ row.local.length }}
+            </p>
+          </div>
         </div>
       </div>
 
