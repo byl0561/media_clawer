@@ -105,7 +105,8 @@ export function buildMovieSeries(load: Loader<MovieSeriesGap[]>): Promise<Series
     return collectSeries(load, (gaps) =>
         gaps.map((gap) => ({
             title: gap.collection_name ?? `合集 ${gap.collection_id}`,
-            link: null,
+            // Open the TMDB collection page when the user clicks the title.
+            link: `https://www.themoviedb.org/collection/${gap.collection_id}`,
             score: gap.score,
             local: gap.local.map(moviePoster),
             missing: gap.missing.map(moviePoster),

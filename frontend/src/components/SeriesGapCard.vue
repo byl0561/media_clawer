@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, ref} from "vue";
+import {computed, onBeforeUnmount, ref, watch} from "vue";
 import type {SeriesPoster, SeriesRow} from "@/types";
 import {imageUrl} from "@/utils/image";
 import {ignoreMovieCollection} from "@/http/api";
@@ -89,6 +89,18 @@ function onMissingClick(p: SeriesPoster, e: MouseEvent): void {
     activeIgnore.value = p
   }
 }
+
+// Escape closes the confirm dialog (matches IgnoreDialog's UX); mount the
+// listener only while the dialog is open so we don't intercept keystrokes
+// from cards that aren't actively showing the prompt.
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key === "Escape") confirmOpen.value = false
+}
+watch(confirmOpen, (open) => {
+  if (open) window.addEventListener("keydown", onKeydown)
+  else window.removeEventListener("keydown", onKeydown)
+})
+onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
 </script>
 
 <template>
@@ -126,8 +138,13 @@ function onMissingClick(p: SeriesPoster, e: MouseEvent): void {
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
       <!-- Left: horizontal-fan stacked deck w/ hover cycle arrows -->
       <div class="shrink-0">
-        <p class="mb-2 text-center text-[11px] font-medium uppercase tracking-wide text-muted">已有</p>
-        <div class="group/deck relative w-40">
+        <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
+          已有 · {{ row.local.length }} 项
+        </p>
+        <!-- Container width = card slot (w-32 = 128px) + max fan (16px) so the
+             visible bounding box stays centered against the labels above and
+             below; the ◀/▶ arrows poke out into the surrounding flex gap. -->
+        <div class="group/deck relative w-36">
           <div class="relative aspect-[2/3] w-32">
             <!-- Decorative behind layers: fan to the right, lower z-index.
                  Render in reverse so the back-most layer is painted first. -->
@@ -203,8 +220,8 @@ function onMissingClick(p: SeriesPoster, e: MouseEvent): void {
             </svg>
           </button>
 
-          <p class="mt-2 text-center text-xs text-muted">
-            已有 {{ row.local.length }} 项<span v-if="canCycle"> · {{ topIndex + 1 }} / {{ row.local.length }}</span>
+          <p v-if="canCycle" class="mt-2 text-center text-xs tabular-nums text-muted">
+            {{ topIndex + 1 }} / {{ row.local.length }}
           </p>
         </div>
       </div>
@@ -252,38 +269,50 @@ function onMissingClick(p: SeriesPoster, e: MouseEvent): void {
       </div>
     </div>
 
-    <!-- Movie ignore-collection confirmation dialog -->
-    <div
-      v-if="confirmOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      role="dialog"
-      aria-modal="true"
-      @click.self="confirmOpen = false"
-    >
-      <div class="w-full max-w-md rounded-2xl border border-border bg-surface-1 p-6 shadow-2xl">
-        <h3 class="text-lg font-semibold text-content">忽略整个合集</h3>
-        <p class="mt-2 text-sm text-muted">
-          确定要忽略合集
-          <span class="font-medium text-content">"{{ row.title }}"</span>
-          吗？该合集将不会再出现在续集列表中，本地 {{ row.local.length }} 部电影会各自记录此设置。
-        </p>
-        <p v-if="ignoreError" class="mt-2 text-sm text-red-400">{{ ignoreError }}</p>
-        <div class="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            class="rounded-md border border-border px-3 py-1.5 text-sm text-content transition hover:bg-surface-2"
-            :disabled="ignoring"
-            @click="confirmOpen = false"
-          >取消</button>
-          <button
-            type="button"
-            class="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-bg transition hover:opacity-90 disabled:opacity-50"
-            :disabled="ignoring"
-            @click="confirmIgnore"
-          >{{ ignoring ? "处理中…" : "确认忽略" }}</button>
+    <!-- Movie ignore-collection confirmation dialog (mirrors IgnoreDialog's
+         shell: teleported to body, dimmed backdrop layer, solid bg-surface
+         panel — without those it renders transparent over the underlying
+         posters and looks broken). -->
+    <Teleport to="body">
+      <div
+        v-if="confirmOpen"
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="忽略整个合集"
+      >
+        <div
+          class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          @click="confirmOpen = false"
+        ></div>
+
+        <div
+          class="relative w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+        >
+          <h3 class="text-base font-semibold text-content">忽略整个合集</h3>
+          <p class="mt-2 text-sm text-muted">
+            确定要忽略合集
+            <span class="font-medium text-content">“{{ row.title }}”</span>
+            吗？该合集将不会再出现在续集列表中，本地 {{ row.local.length }} 部电影会各自记录此设置。
+          </p>
+          <p v-if="ignoreError" class="mt-3 text-sm text-danger">{{ ignoreError }}</p>
+          <div class="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-lg border border-border px-4 py-2 text-sm text-content transition hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              :disabled="ignoring"
+              @click="confirmOpen = false"
+            >取消</button>
+            <button
+              type="button"
+              class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="ignoring"
+              @click="confirmIgnore"
+            >{{ ignoring ? "处理中…" : "确认忽略" }}</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <!-- TV/anime per-season IgnoreDialog (reused from the old flow) -->
     <IgnoreDialog
