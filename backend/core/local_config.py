@@ -1,26 +1,19 @@
 """Per-item local config file: ``.mediaclawer.json``.
 
 One JSON file next to each local item's primary metadata file (movie folder,
-show folder, album folder, book parent folder) replaces the two legacy text
-formats:
+show folder, album folder, book parent folder) stores user-editable extras:
 
-  - ``alias.txt`` (all libraries) → JSON ``aliases``
-  - ``Season N/checked_episode.txt`` (tv/anime) → JSON ``seasons.<num>.checked_episode``
-
-It also introduces ``skip_collections`` (movies only): TMDB collection IDs the
-user has dismissed (e.g. junk TMDB groupings like a theatre's catalogue) so
-the series-gap view stops carrying them.
-
-Migration is lazy: the first :func:`read_config` on a folder that has no JSON
-but has legacy files pulls them in and deletes the originals atomically. Once
-the JSON exists, it is the single source of truth — manually re-introduced
-legacy files are not picked up.
+  - ``aliases`` (all libraries): extra title strings fed into fuzzy matching
+  - ``skip_collections`` (movies only): TMDB collection IDs the user has
+    dismissed (junk groupings like a theatre's catalogue) so the series-gap
+    view stops carrying them
+  - ``seasons`` (tv/anime only): per-season ``checked_episode`` cutoffs that
+    suppress that season's outstanding-episode gaps
 
 The JSON is UTF-8, indented, sorted-keyed, so users can hand-edit it.
 """
 import json
 import os
-import re
 from typing import Dict, Iterable, List, Optional
 
 __all__ = [
@@ -33,20 +26,15 @@ __all__ = [
 
 CONFIG_FILE = ".mediaclawer.json"
 
-_LEGACY_ALIAS = "alias.txt"
-_LEGACY_SEASON_CHECK = "checked_episode.txt"
-# Matches both tmm-style ``Specials`` and MoviePilot/Plex-style ``Season N``.
-_SEASON_DIR_RE = re.compile(r"^(?:Specials|Season\s+(\d+))$")
-
 
 def _config_path(folder: str) -> str:
     return os.path.join(folder, CONFIG_FILE)
 
 
-def _read_json(folder: str) -> Optional[dict]:
+def _read_json(folder: str) -> dict:
     path = _config_path(folder)
     if not os.path.exists(path):
-        return None
+        return {}
     try:
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
@@ -65,64 +53,9 @@ def _write_json(folder: str, data: dict) -> None:
     os.replace(tmp, path)
 
 
-def _migrate_legacy(folder: str) -> Optional[dict]:
-    """Build a config dict from legacy files in ``folder`` and remove them.
-
-    Returns the migrated dict when at least one legacy file existed (the JSON
-    file is also written on disk), or ``None`` if there was nothing to do.
-    """
-    data: dict = {}
-
-    alias_path = os.path.join(folder, _LEGACY_ALIAS)
-    if os.path.isfile(alias_path):
-        try:
-            with open(alias_path, "r", encoding="utf-8") as fh:
-                aliases = [ln.strip() for ln in fh.read().splitlines() if ln.strip()]
-            if aliases:
-                data["aliases"] = aliases
-            os.remove(alias_path)
-        except OSError:
-            pass
-
-    seasons: Dict[str, dict] = {}
-    if os.path.isdir(folder):
-        try:
-            children = os.listdir(folder)
-        except OSError:
-            children = []
-        for name in children:
-            sub = os.path.join(folder, name)
-            if not os.path.isdir(sub):
-                continue
-            match = _SEASON_DIR_RE.match(name)
-            if not match:
-                continue
-            num = 0 if name == "Specials" else int(match.group(1))
-            check = os.path.join(sub, _LEGACY_SEASON_CHECK)
-            if not os.path.isfile(check):
-                continue
-            try:
-                with open(check, "r", encoding="utf-8") as fh:
-                    episode = int((fh.readline() or "0").strip() or 0)
-                seasons[str(num)] = {"checked_episode": episode}
-                os.remove(check)
-            except (OSError, ValueError):
-                pass
-    if seasons:
-        data["seasons"] = seasons
-
-    if not data:
-        return None
-    _write_json(folder, data)
-    return data
-
-
 def read_config(folder: str) -> dict:
-    """Return the per-folder config dict, migrating legacy files on first hit."""
-    data = _read_json(folder)
-    if data is not None:
-        return data
-    return _migrate_legacy(folder) or {}
+    """Return the per-folder config dict, or ``{}`` when the file is absent."""
+    return _read_json(folder)
 
 
 def add_aliases(folder: str, aliases: Iterable[str]) -> int:
