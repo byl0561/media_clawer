@@ -290,6 +290,7 @@ class TmdbSeason(Season):
         date: Optional[str],
         episodes: List[TmdbEpisode],
         poster: Optional[str] = None,
+        rate: Optional[Rate] = None,
     ):
         super().__init__(num, name)
         self.date = date
@@ -297,6 +298,7 @@ class TmdbSeason(Season):
         self.max_episode = episodes[-1].num if len(episodes) > 0 else 0
         self.min_episode = episodes[0].num if len(episodes) > 0 else 0
         self.poster = (TMDB_IMAGE_PATH + poster) if poster else None
+        self.rate = rate
 
     def get_episode(self, episode_num: int) -> Optional[TmdbEpisode]:
         return self.episodes.get(episode_num)

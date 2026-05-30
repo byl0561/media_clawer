@@ -6,13 +6,11 @@ import {ignoreMovieCollection} from "@/http/api";
 import RatingChip from "@/components/RatingChip.vue";
 import IgnoreDialog from "@/components/IgnoreDialog.vue";
 
-// Renders one series row: left stacked-deck of owned items + right tiled grid
-// of missing items + title and (vote-weighted) score below. The deck's top-
-// right "忽略" button is only present on the movie variant — it asks for
-// confirmation, then POSTs ignore-collection, which writes skip_collections
-// onto every local movie tied to this collection so the row disappears next
-// reload. TV/anime right tiles carry an `ignore` ref so clicking opens the
-// existing per-season IgnoreDialog.
+// Series-gap card: title + score on top (with an optional movie-only "忽略
+// 合集" button shown on hover next to the title); a stacked deck of owned
+// items on the left (horizontal-only fan, ◀/▶ arrows on hover to cycle the
+// front card); a tiled grid of missing items on the right. Vertically
+// centered on the row so a tall right grid doesn't make the deck float.
 const props = defineProps<{ row: SeriesRow }>()
 const emit = defineEmits<{
   // fully=true: parent drops the row immediately.
@@ -26,11 +24,38 @@ const ignoring = ref(false)
 const ignoreError = ref<string | null>(null)
 const activeIgnore = ref<SeriesPoster | null>(null)
 
-// The top-of-deck poster is the first; lower layers fan out behind it.
-// We render only the first 3 with offset transforms — beyond that gets a
-// "+N" badge in the corner of the bottom layer.
-const deckLayers = computed(() => props.row.local.slice(0, 3))
-const overflow = computed(() => Math.max(0, props.row.local.length - 3))
+// Front-of-deck pointer; ◀/▶ rotate it (modulo length).
+const topIndex = ref(0)
+
+// Build the visible 3-card slice rotated so `topIndex` is on top. Behind-cards
+// reuse the next entries (cyclic), so a 2-movie collection still fans even
+// after cycling. Pure-decorative for layers 1 & 2; the top card is the only
+// one that's clickable / carries the score chip.
+const deckLayers = computed<SeriesPoster[]>(() => {
+  const n = props.row.local.length
+  if (n === 0) return []
+  const out: SeriesPoster[] = []
+  for (let i = 0; i < Math.min(3, n); i++) {
+    out.push(props.row.local[(topIndex.value + i) % n])
+  }
+  return out
+})
+
+const canCycle = computed(() => props.row.local.length > 1)
+const topCard = computed<SeriesPoster | null>(() => deckLayers.value[0] ?? null)
+
+function next(e: MouseEvent): void {
+  e.stopPropagation()
+  e.preventDefault()
+  const n = props.row.local.length
+  if (n > 0) topIndex.value = (topIndex.value + 1) % n
+}
+function prev(e: MouseEvent): void {
+  e.stopPropagation()
+  e.preventDefault()
+  const n = props.row.local.length
+  if (n > 0) topIndex.value = (topIndex.value - 1 + n) % n
+}
 
 function onImgError(e: Event): void {
   const img = e.target as HTMLImageElement
@@ -68,20 +93,50 @@ function onMissingClick(p: SeriesPoster, e: MouseEvent): void {
 
 <template>
   <article
-    class="animate-fade-in rounded-2xl border border-border bg-surface-2/40 p-4 backdrop-blur-sm transition hover:border-accent/40"
+    class="group/card animate-fade-in rounded-2xl border border-border bg-surface-2/40 p-4 backdrop-blur-sm transition hover:border-accent/40"
   >
-    <div class="flex flex-col gap-4 md:flex-row md:items-start">
-      <!-- Left: stacked-deck of owned items -->
+    <!-- Header: title + (movie-only) ignore button on hover + weighted score -->
+    <header class="mb-4 flex items-center justify-between gap-3 border-b border-border/60 pb-3">
+      <div class="flex min-w-0 items-center gap-2">
+        <component
+          :is="row.link ? 'a' : 'div'"
+          :href="row.link ?? undefined"
+          :target="row.link ? '_blank' : undefined"
+          rel="noopener noreferrer"
+          class="min-w-0 truncate text-sm font-semibold text-content transition hover:text-accent"
+          :title="row.title"
+        >
+          {{ row.title }}
+        </component>
+        <button
+          v-if="row.ignoreCollection"
+          type="button"
+          @click.stop.prevent="confirmOpen = true"
+          title="忽略整个合集"
+          class="shrink-0 rounded-md bg-surface px-2 py-0.5 text-xs font-semibold text-muted ring-1 ring-border transition opacity-0 pointer-events-none hover:text-content hover:ring-accent focus-visible:opacity-100 focus-visible:pointer-events-auto group-hover/card:opacity-100 group-hover/card:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+        >忽略</button>
+      </div>
+      <RatingChip :score="row.score" />
+    </header>
+
+    <!-- Body: vertically centered deck on the left, tiled grid on the right.
+         A thin divider (vertical on md+, horizontal on mobile) separates the
+         "owned" and "missing" halves so the boundary stays legible even when
+         the right grid wraps to multiple rows. -->
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
+      <!-- Left: horizontal-fan stacked deck w/ hover cycle arrows -->
       <div class="shrink-0">
-        <div class="relative w-32 sm:w-36">
-          <div class="relative aspect-[2/3]">
-            <!-- Decorative layers behind (reverse-order so first stays on top) -->
-            <template v-for="(p, i) in deckLayers.slice().reverse()" :key="`bg-${deckLayers.length - 1 - i}`">
+        <p class="mb-2 text-center text-[11px] font-medium uppercase tracking-wide text-muted">已有</p>
+        <div class="group/deck relative w-40">
+          <div class="relative aspect-[2/3] w-32">
+            <!-- Decorative behind layers: fan to the right, lower z-index.
+                 Render in reverse so the back-most layer is painted first. -->
+            <template v-for="(p, i) in deckLayers.slice().reverse()" :key="`bg-${(deckLayers.length - 1 - i)}-${p.poster ?? p.title}`">
               <div
                 v-if="(deckLayers.length - 1 - i) > 0"
                 class="absolute inset-0 overflow-hidden rounded-xl bg-surface-2 ring-1 ring-border"
                 :style="{
-                  transform: `translate(${(deckLayers.length - 1 - i) * 6}px, ${(deckLayers.length - 1 - i) * 6}px)`,
+                  transform: `translateX(${(deckLayers.length - 1 - i) * 8}px)`,
                   zIndex: 10 - (deckLayers.length - 1 - i),
                 }"
               >
@@ -91,52 +146,78 @@ function onMissingClick(p: SeriesPoster, e: MouseEvent): void {
                   loading="lazy"
                   decoding="async"
                   @error="onImgError"
-                  class="h-full w-full object-cover opacity-90"
+                  class="h-full w-full object-cover opacity-80"
                 />
               </div>
             </template>
-            <!-- Top layer (first poster), always interactive -->
+
+            <!-- Top card: clickable, score chip, title overlay at the bottom -->
             <component
-              v-if="deckLayers.length > 0"
-              :is="row.local[0].link ? 'a' : 'div'"
-              :href="row.local[0].link ?? undefined"
-              :target="row.local[0].link ? '_blank' : undefined"
+              v-if="topCard"
+              :is="topCard.link ? 'a' : 'div'"
+              :href="topCard.link ?? undefined"
+              :target="topCard.link ? '_blank' : undefined"
               rel="noopener noreferrer"
-              class="group absolute inset-0 block overflow-hidden rounded-xl bg-surface-2 ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 hover:ring-accent/60"
+              class="absolute inset-0 block overflow-hidden rounded-xl bg-surface-2 ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 hover:ring-accent/60"
               :style="{ zIndex: 20 }"
             >
               <img
-                :src="imageUrl(row.local[0].poster)"
-                :alt="row.local[0].title"
+                :src="imageUrl(topCard.poster)"
+                :alt="topCard.title"
                 loading="lazy"
                 decoding="async"
                 @error="onImgError"
-                class="h-full w-full object-cover transition group-hover:scale-105"
+                class="h-full w-full object-cover transition"
               />
               <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-transparent"></div>
-              <button
-                v-if="row.ignoreCollection"
-                type="button"
-                @click.stop.prevent="confirmOpen = true"
-                title="忽略整个合集"
-                class="absolute right-2 top-2 rounded-md bg-black/65 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >忽略</button>
-              <div class="pointer-events-none absolute bottom-1.5 left-1.5 right-1.5 truncate text-xs text-white/90" :title="row.local[0].title">
-                {{ row.local[0].title }}
+              <div class="absolute left-2 top-2">
+                <RatingChip :score="topCard.score" />
+              </div>
+              <div class="pointer-events-none absolute bottom-1.5 left-1.5 right-1.5 truncate text-xs text-white/90" :title="topCard.title">
+                {{ topCard.title }}
               </div>
             </component>
-            <div
-              v-if="overflow > 0"
-              class="absolute -bottom-2 -right-2 rounded-full bg-accent/90 px-2 py-0.5 text-xs font-semibold text-bg shadow"
-              :style="{ zIndex: 30 }"
-            >+{{ overflow }}</div>
           </div>
-          <p class="mt-2 text-center text-xs text-muted">已有 {{ row.local.length }} 部</p>
+
+          <!-- Cycle arrows (hover-only, only when there's something to cycle) -->
+          <button
+            v-if="canCycle"
+            type="button"
+            @click="prev"
+            aria-label="上一部"
+            class="absolute left-0 top-1/2 z-30 -translate-x-1 -translate-y-1/2 rounded-full bg-black/60 p-1.5 text-white/95 backdrop-blur-sm transition opacity-0 pointer-events-none hover:bg-accent focus-visible:opacity-100 focus-visible:pointer-events-auto group-hover/deck:opacity-100 group-hover/deck:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+          >
+            <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M12.5 4.5a1 1 0 010 1.4L8.4 10l4.1 4.1a1 1 0 11-1.4 1.4l-4.8-4.8a1 1 0 010-1.4l4.8-4.8a1 1 0 011.4 0z" />
+            </svg>
+          </button>
+          <button
+            v-if="canCycle"
+            type="button"
+            @click="next"
+            aria-label="下一部"
+            class="absolute right-0 top-1/2 z-30 translate-x-1 -translate-y-1/2 rounded-full bg-black/60 p-1.5 text-white/95 backdrop-blur-sm transition opacity-0 pointer-events-none hover:bg-accent focus-visible:opacity-100 focus-visible:pointer-events-auto group-hover/deck:opacity-100 group-hover/deck:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+          >
+            <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M7.5 4.5a1 1 0 011.4 0l4.8 4.8a1 1 0 010 1.4l-4.8 4.8a1 1 0 11-1.4-1.4L11.6 10 7.5 5.9a1 1 0 010-1.4z" />
+            </svg>
+          </button>
+
+          <p class="mt-2 text-center text-xs text-muted">
+            已有 {{ row.local.length }} 项<span v-if="canCycle"> · {{ topIndex + 1 }} / {{ row.local.length }}</span>
+          </p>
         </div>
       </div>
 
-      <!-- Right: tiled missing items -->
+      <!-- Divider between "owned" and "missing"; vertical on md+, horizontal stack on mobile -->
+      <div class="hidden self-stretch md:block md:w-px md:bg-border/60" aria-hidden="true"></div>
+      <div class="block h-px bg-border/60 md:hidden" aria-hidden="true"></div>
+
+      <!-- Right: tiled missing items, each with its own score chip -->
       <div class="min-w-0 flex-1">
+        <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
+          待加 · {{ row.missing.length }} 项
+        </p>
         <div class="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           <component
             v-for="(p, idx) in row.missing"
@@ -159,6 +240,9 @@ function onMissingClick(p: SeriesPoster, e: MouseEvent): void {
                 class="h-full w-full object-cover transition group-hover:scale-105"
               />
               <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/0 to-transparent"></div>
+              <div class="absolute left-1.5 top-1.5">
+                <RatingChip :score="p.score" />
+              </div>
               <div class="pointer-events-none absolute bottom-1 left-1.5 right-1.5 truncate text-[11px] font-medium text-white/90" :title="p.title">
                 {{ p.title }}
               </div>
@@ -166,21 +250,6 @@ function onMissingClick(p: SeriesPoster, e: MouseEvent): void {
           </component>
         </div>
       </div>
-    </div>
-
-    <!-- Footer: title + score -->
-    <div class="mt-4 flex items-baseline justify-between gap-3 border-t border-border/60 pt-3">
-      <component
-        :is="row.link ? 'a' : 'div'"
-        :href="row.link ?? undefined"
-        :target="row.link ? '_blank' : undefined"
-        rel="noopener noreferrer"
-        class="min-w-0 truncate text-sm font-semibold text-content transition hover:text-accent"
-        :title="row.title"
-      >
-        {{ row.title }}
-      </component>
-      <RatingChip :score="row.score" />
     </div>
 
     <!-- Movie ignore-collection confirmation dialog -->

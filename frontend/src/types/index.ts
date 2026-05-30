@@ -35,6 +35,8 @@ export interface SeriesPoster {
     title: string;
     poster: string | null;
     link: string | null;
+    /** TMDB score (rounded to 1 dp), null when there isn't one yet. */
+    score: number | null;
     /** Set on right-side TV/anime tiles to open the per-season ignore dialog. */
     ignore?: IgnoreRef;
 }

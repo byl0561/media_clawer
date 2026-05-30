@@ -109,8 +109,14 @@ def anime_diff() -> dict:
     return _diff(bangumi_shows, local_shows, _is_retained_anime)
 
 
-def _season_ref(num: int, name: str, poster: Optional[str]) -> dict:
-    return {"num": num, "name": name, "poster": poster}
+def _season_ref(season) -> dict:
+    rate = getattr(season, "rate", None)
+    return {
+        "num": season.num,
+        "name": season.name,
+        "poster": getattr(season, "poster", None),
+        "score": round(rate.score, 1) if rate is not None and rate.score > 0 else None,
+    }
 
 
 def series_gaps(library: str) -> list:
@@ -139,7 +145,7 @@ def series_gaps(library: str) -> list:
         tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
 
         missing_seasons = [
-            _season_ref(s.num, s.name, s.poster)
+            _season_ref(s)
             for s in tmdb_tv_show.list_seasons()
             if local_tv_show.get_season(s.num) is None and _legal_season(s)
         ]
@@ -173,9 +179,7 @@ def series_gaps(library: str) -> list:
             tmdb_season = tmdb_seasons_by_num.get(num)
             if tmdb_season is None:
                 continue
-            local_seasons.append(
-                _season_ref(num, tmdb_season.name, tmdb_season.poster)
-            )
+            local_seasons.append(_season_ref(tmdb_season))
 
         result.append(
             {

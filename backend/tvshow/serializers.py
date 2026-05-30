@@ -25,11 +25,12 @@ class TvShowSerializer(RatedMediaSerializer):
 
 
 class SeasonRefSerializer(serializers.Serializer):
-    """One season identifier + display fields (poster + chinese name)."""
+    """One season identifier + display fields (poster + chinese name + TMDB score)."""
 
     num = serializers.IntegerField()
     name = serializers.CharField()
     poster = serializers.CharField(allow_null=True, required=False)
+    score = serializers.FloatField(allow_null=True, required=False)
 
 
 class IncompleteSeasonSerializer(serializers.Serializer):

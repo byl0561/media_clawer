@@ -24,16 +24,21 @@ def get_tmdb_tv_show(tv_show_id: int, cache: bool = True) -> Optional[TmdbTvShow
         return None
 
     data = json.loads(res)
-    seasons = [
-        TmdbSeason(
-            s["season_number"],
-            s["name"],
-            s["air_date"],
-            [],
-            poster=s.get("poster_path"),
+    seasons = []
+    for s in data["seasons"]:
+        season_rate = None
+        if s.get("vote_average") is not None:
+            season_rate = Rate(s["vote_average"], s.get("vote_count") or 0, "TMDB")
+        seasons.append(
+            TmdbSeason(
+                s["season_number"],
+                s["name"],
+                s["air_date"],
+                [],
+                poster=s.get("poster_path"),
+                rate=season_rate,
+            )
         )
-        for s in data["seasons"]
-    ]
     seasons = sorted(seasons, key=lambda s: s.num)
     return TmdbTvShow(
         data["name"],

@@ -70,7 +70,7 @@ export function buildGroup<T>(
 // --- 续集 tab builders --------------------------------------------------
 
 function moviePoster(item: MediaItemDTO): SeriesPoster {
-    return {title: item.title, poster: item.poster, link: item.link};
+    return {title: item.title, poster: item.poster, link: item.link, score: item.score};
 }
 
 function seasonPoster(season: SeasonRef): SeriesPoster {
@@ -78,6 +78,7 @@ function seasonPoster(season: SeasonRef): SeriesPoster {
         title: season.name,
         poster: season.poster,
         link: null,
+        score: season.score ?? null,
     };
 }
 
@@ -86,14 +87,15 @@ function incompletePoster(
     inc: IncompleteSeason,
     library: IgnoreLibrary,
 ): SeriesPoster {
-    // Reuse the season poster from local_seasons when we have it (the local
-    // season exists by definition for an incomplete entry); fall back to none.
+    // Reuse the season poster (and score) from local_seasons when we have it
+    // — the local season exists by definition for an incomplete entry.
     const local = show.local_seasons.find((s) => s.num === inc.season_num);
     const tmdbId = show.show.tmdb_id;
     return {
         title: `${inc.season_name} · 缺 ${inc.local_max_episode + 1}–${inc.remote_max_episode} 集`,
         poster: local?.poster ?? null,
         link: null,
+        score: local?.score ?? null,
         ignore: tmdbId != null ? {library, tmdbId} : undefined,
     };
 }

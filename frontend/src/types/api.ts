@@ -55,11 +55,12 @@ export interface MovieSeriesGap {
     missing: MovieItem[];
 }
 
-/** One season identifier + display fields (poster + chinese name). */
+/** One season identifier + display fields (poster + chinese name + TMDB score). */
 export interface SeasonRef {
     num: number;
     name: string;
     poster: string | null;
+    score?: number | null;
 }
 
 export interface IncompleteSeason {
