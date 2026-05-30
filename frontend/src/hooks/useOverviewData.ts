@@ -40,12 +40,23 @@ export function useOverviewData(): {
     async function loadEntry(entry: CatalogEntry): Promise<CardState> {
         const tabs = entry.group.mediaItemFunctionGroups;
         const results = await Promise.all(
-            tabs.map((tab) =>
-                tab
-                    .acquireData()
-                    .then((d) => (d.valid ? d.mediaItems.length : null))
-                    .catch(() => null),
-            ),
+            tabs.map((tab) => {
+                // 续集 tabs return a series payload (rows); everything else
+                // returns the legacy flat items group. Reduce both to a count.
+                if (tab.acquireSeries) {
+                    return tab
+                        .acquireSeries()
+                        .then((d) => (d.valid ? d.rows.length : null))
+                        .catch(() => null);
+                }
+                if (tab.acquireData) {
+                    return tab
+                        .acquireData()
+                        .then((d) => (d.valid ? d.mediaItems.length : null))
+                        .catch(() => null);
+                }
+                return Promise.resolve<number | null>(null);
+            }),
         );
         const counts: CardCount[] = tabs.map((tab, i) => ({
             name: tab.name,
