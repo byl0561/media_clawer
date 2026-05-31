@@ -9,14 +9,29 @@ from core.http import http_get_with_cache
 from tvshow.models import BangumiTvShow, Rate
 
 
+_MAX_PAGES = 30
+_MAX_CONSECUTIVE_FAILURES = 5
+
+
 def crawl_bangumi_tv_show_80(cache: bool = True) -> list:
+    """Scrape the Bangumi anime rank pages until we collect 80 entries.
+
+    Stops on three conditions to avoid the runaway-loop case that used to
+    drive page numbers into the hundreds when Bangumi's TLS flapped:
+
+    1. 80 anime collected (the original happy path);
+    2. ``_MAX_PAGES`` hit — if the curation filters reject too much we'd
+       otherwise scan indefinitely;
+    3. ``_MAX_CONSECUTIVE_FAILURES`` upstream errors in a row — when
+       Bangumi is down, retrying every page just floods their server
+       and our logs.
+    """
     tv_shows = []
     tv_show_names = set()
 
     page = 0
-    while True:
-        if check_max_size(tv_shows):
-            break
+    failures = 0
+    while not check_max_size(tv_shows) and page < _MAX_PAGES:
         page += 1
         url = "https://bangumi.tv/anime/browser/tv/?sort=rank&page=" + str(page)
         res = http_get_with_cache(
@@ -27,7 +42,11 @@ def crawl_bangumi_tv_show_80(cache: bool = True) -> list:
             need_cache=cache,
         )
         if res is None:
+            failures += 1
+            if failures >= _MAX_CONSECUTIVE_FAILURES:
+                break
             continue
+        failures = 0
 
         bs = bs4.BeautifulSoup(res, "html.parser")
         bs = bs.find("ul", class_="browserFull")
