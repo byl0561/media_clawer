@@ -4,4 +4,4 @@ from movie import services
 
 
 def cronjob() -> None:
-    run_job("movie", services.refresh_all)
+    run_job("movie", services.refresh_all, services.warm_subtitle_cache)

@@ -259,6 +259,17 @@ def _folder_has_subtitle(folder: str) -> bool:
     return False
 
 
+def warm_subtitle_cache() -> None:
+    """Pre-walk every local movie so the subtitle probe cache is hot.
+
+    Just calls :func:`subtitle_gaps` and discards the response — the side
+    effect (populating ``media_probe``'s per-file Redis cache) is what
+    matters, so the first user-facing /movies/subtitle-gaps doesn't pay
+    the per-video ffprobe cost.
+    """
+    subtitle_gaps()
+
+
 def subtitle_gaps() -> list:
     """Local movies missing both external and embedded subtitles."""
     result = []

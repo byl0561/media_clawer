@@ -4,4 +4,4 @@ from music import services
 
 
 def cronjob() -> None:
-    run_job("music", services.refresh_all)
+    run_job("music", services.refresh_all, services.warm_lyric_cache)

@@ -70,6 +70,17 @@ def _album_has_full_lyrics(folder: str) -> bool:
     return found_any
 
 
+def warm_lyric_cache() -> None:
+    """Pre-walk every local album so lyric probes are cached.
+
+    Just calls :func:`lyric_gaps` and discards the response — the side
+    effect (populating ``media_probe``'s Redis cache for every track)
+    means the first user-facing /albums/lyric-gaps doesn't pay the per-
+    file mutagen-open cost.
+    """
+    lyric_gaps()
+
+
 def lyric_gaps() -> list:
     """Local albums whose tracks are missing embedded lyrics on any song.
 

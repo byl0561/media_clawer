@@ -4,4 +4,4 @@ from tvshow import services
 
 
 def cronjob() -> None:
-    run_job("tvshow", services.refresh_all)
+    run_job("tvshow", services.refresh_all, services.warm_subtitle_cache)

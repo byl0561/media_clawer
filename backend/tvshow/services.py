@@ -404,6 +404,17 @@ def _read_subtitle_cutoffs(folder: str) -> dict:
     return out
 
 
+def warm_subtitle_cache() -> None:
+    """Pre-walk every local TV/anime episode so subtitle probes are cached.
+
+    Runs the gap builder for both libraries and discards the responses;
+    the per-file ffprobe cost lands in ``media_probe``'s Redis cache so
+    the first user-facing subtitle-gap request stays fast.
+    """
+    subtitle_gaps("tv")
+    subtitle_gaps("anime")
+
+
 def subtitle_gaps(library: str) -> list:
     """Per-show seasons whose local episodes are missing a subtitle.
 
