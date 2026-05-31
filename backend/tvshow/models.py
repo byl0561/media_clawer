@@ -234,6 +234,7 @@ class LocalTvShow(TvShow):
         seasons: List[LocalSeason],
         shadow_seasons: List[LocalShadowSeason],
         path: Optional[str] = None,
+        empty_seasons: Optional[List[int]] = None,
     ):
         self.title = title
         self.original_title = original_title
@@ -247,6 +248,10 @@ class LocalTvShow(TvShow):
         self.shadow_seasons = {season.num: season for season in shadow_seasons}
         # Absolute path of the show folder (where .mediaclawer.json lives).
         self.path = path
+        # Season numbers whose disk folder exists but has no video files
+        # (scraped + season folder created, but no episodes ever landed).
+        # The subtitle-gap surface treats these as "整季 missing".
+        self.empty_seasons = empty_seasons or []
 
     def get_titles(self) -> List[str]:
         return [self.title, self.original_title, *self.alias]

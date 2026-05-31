@@ -4,12 +4,18 @@ Parsing rules unchanged; I/O plumbing shared via :mod:`core`.
 """
 import glob
 import os
+import re
 import xml.etree.ElementTree as ET
 
 from core import conf, scanning
 from core.local_config import read_config
 from core.media_probe import VIDEO_EXTS
 from tvshow.models import LocalEpisode, LocalSeason, LocalShadowSeason, LocalTvShow, Rate
+
+# Season folder naming: tmm uses "Specials" for season 0, MoviePilot/Plex
+# both use "Season N" (or "Season 0" for specials). The subtitle-gap surface
+# uses this to find season folders that exist on disk but contain no video.
+_SEASON_DIR_RE = re.compile(r"^(?:Specials|Season\s+(\d+))$")
 
 
 def file_filter(file: str) -> bool:
@@ -140,6 +146,36 @@ def process_file(path: str):
         )
 
     seasons = sorted(seasons, key=lambda s: s.num)
+
+    # Season folders that exist on disk but have no video at all — the show
+    # was scraped + a season folder created, but the episodes never landed.
+    # Seasons with at least one real episode are handled by the per-episode
+    # subtitle check and excluded here.
+    empty_seasons = []
+    try:
+        entries = os.listdir(root)
+    except OSError:
+        entries = []
+    for entry in entries:
+        sub = os.path.join(root, entry)
+        if not os.path.isdir(sub):
+            continue
+        m = _SEASON_DIR_RE.match(entry)
+        if not m:
+            continue
+        num = 0 if entry == "Specials" else int(m.group(1))
+        if num in season_num_2_episodes:
+            continue
+        try:
+            sub_entries = os.listdir(sub)
+        except OSError:
+            continue
+        if any(
+            os.path.splitext(name)[1].lower() in VIDEO_EXTS for name in sub_entries
+        ):
+            continue
+        empty_seasons.append(num)
+
     return LocalTvShow(
         title,
         original_title,
@@ -151,6 +187,7 @@ def process_file(path: str):
         seasons,
         shadow_episodes,
         path=root,
+        empty_seasons=empty_seasons,
     )
 
 

@@ -51,17 +51,23 @@ def _album_has_full_lyrics(folder: str) -> bool:
     Walks subfolders too — multi-disc albums commonly land under
     ``Album/CD1/...``, ``Album/CD2/...``, and the old listdir-only version
     falsely reported them as "all lyric'd" because the top level had no
-    audio files of its own. Empty/no-audio folders are not flagged.
+    audio files of its own.
+
+    Returns False when the album folder contains no audio at all — a
+    metadata-only album folder with the tracks missing is itself a gap and
+    should land in the lyric list.
     """
     if not os.path.isdir(folder):
         return True
+    found_any = False
     for root, _dirs, files in os.walk(folder):
         for name in files:
             if os.path.splitext(name)[1].lower() not in AUDIO_EXTS:
                 continue
+            found_any = True
             if not has_lyrics(os.path.join(root, name)):
                 return False
-    return True
+    return found_any
 
 
 def lyric_gaps() -> list:

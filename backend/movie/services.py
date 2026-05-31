@@ -237,27 +237,26 @@ def alias_targets() -> list:
 
 
 def _folder_has_subtitle(folder: str) -> bool:
-    """Folder counts as 'has subtitle' if every video in it carries one.
+    """Folder counts as 'has subtitle' if at least one video in it carries one.
 
     Movie folders typically hold one video plus optional extras (trailers,
-    behind-the-scenes). Requiring all videos to have subtitles would over-
-    report; treating any present subtitle (external or embedded) on any
-    video in the folder as sufficient matches what the user means by "this
-    movie has a subtitle".
+    behind-the-scenes); treating any present subtitle on any video as
+    sufficient matches what the user means by "this movie has a subtitle".
+
+    Returns False when the folder has no video files at all — an NFO'd movie
+    with the media missing is itself a gap and should land in the subtitle
+    list (user can clean up the empty NFO or re-acquire the file).
     """
     try:
         names = os.listdir(folder)
     except OSError:
         return True
-    found_video = False
     for name in names:
         if os.path.splitext(name)[1].lower() not in VIDEO_EXTS:
             continue
-        found_video = True
         if has_subtitle(os.path.join(folder, name)):
             return True
-    # No videos at all → nothing to flag (empty/incomplete folder).
-    return not found_video
+    return False
 
 
 def subtitle_gaps() -> list:

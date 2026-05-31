@@ -442,6 +442,33 @@ def subtitle_gaps(library: str) -> list:
                 }
             )
 
+        # Season folders that exist on disk but contain no video at all.
+        # Suppressed when:
+        #  - the season is shadow-ignored at the series level (user already
+        #    said "I'm OK without these episodes"), or
+        #  - the user has set any subtitle_checked_episode for this season.
+        for num in local_tv_show.empty_seasons:
+            if num in local_tv_show.shadow_seasons:
+                continue
+            if cutoffs.get(num, 0) > 0:
+                continue
+            tmdb_season = tmdb_seasons_by_num.get(num)
+            expected = tmdb_season.episode_count if tmdb_season else 0
+            gap_seasons.append(
+                {
+                    "num": num,
+                    "name": tmdb_season.name if tmdb_season else f"第 {num} 季",
+                    "poster": tmdb_season.poster if tmdb_season else None,
+                    "score": (
+                        round(tmdb_season.rate.score, 1)
+                        if tmdb_season and tmdb_season.rate and tmdb_season.rate.score > 0
+                        else None
+                    ),
+                    "missing_count": expected,
+                    "max_missing_episode": expected,
+                }
+            )
+
         if not gap_seasons:
             continue
         gap_seasons.sort(key=lambda s: s["num"])
@@ -500,6 +527,28 @@ def subtitle_ignore_options(library: str, tmdb_id: int) -> dict:
                 "local_max_episode": cutoff,
                 "latest_episode": missing_eps[-1],
                 "episodes": episode_entries,
+            }
+        )
+
+    # Empty season folders surface in subtitle_gaps too; offer a synthetic
+    # "整季" choice keyed at TMDB's episode_count so the user can dismiss
+    # them from the dialog without having any real local episodes to pick.
+    for num in sorted(local_tv_show.empty_seasons):
+        if num in local_tv_show.shadow_seasons:
+            continue
+        if cutoffs.get(num, 0) > 0:
+            continue
+        tmdb_season = tmdb_seasons_by_num.get(num)
+        expected = tmdb_season.episode_count if tmdb_season else 0
+        if expected <= 0:
+            expected = 1
+        seasons.append(
+            {
+                "season_num": num,
+                "season_name": tmdb_season.name if tmdb_season else f"第 {num} 季",
+                "local_max_episode": 0,
+                "latest_episode": expected,
+                "episodes": [{"num": expected, "name": "整季", "date": None}],
             }
         )
 
