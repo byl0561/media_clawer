@@ -256,6 +256,7 @@ def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
 
     season_max = local_tv_show.map_season_max_episode()
     candidates = set(season_max)
+    list_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
     for tmdb_season in tmdb_tv_show.list_seasons():
         if local_tv_show.get_season(tmdb_season.num) is None and _legal_season(
             tmdb_season
@@ -264,27 +265,55 @@ def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
 
     seasons = []
     for num in sorted(candidates):
-        tmdb_season = get_tmdb_tv_show_season(tmdb_id, num)
-        if tmdb_season is None:
-            continue
         local_max = season_max.get(num, 0)
-        missing = [
-            e
-            for e in tmdb_season.list_episodes()
-            if e.num > local_max and _legal_episode(e)
-        ]
-        if not missing:
+        detail = get_tmdb_tv_show_season(tmdb_id, num)
+
+        # Happy path: per-season detail exists and has aired episodes the
+        # user is behind on.
+        aired = (
+            [
+                e
+                for e in detail.list_episodes()
+                if e.num > local_max and _legal_episode(e)
+            ]
+            if detail is not None
+            else []
+        )
+        if aired:
+            seasons.append(
+                {
+                    "season_num": num,
+                    "season_name": detail.name,
+                    "local_max_episode": local_max,
+                    "latest_episode": max(e.num for e in aired),
+                    "episodes": [
+                        {"num": e.num, "name": e.name, "date": e.get_date() or None}
+                        for e in aired
+                    ],
+                }
+            )
+            continue
+
+        # Fallback: no per-episode data we can offer (either the detail
+        # endpoint failed/was rate-limited, or every episode has air_date
+        # null / in the future). The season still showed up in the 续集
+        # page, so the user must be able to dismiss it — synthesise a
+        # single "整季" entry using whatever max-episode hint we have.
+        synth_max = 0
+        if detail is not None:
+            synth_max = max((e.num for e in detail.list_episodes()), default=0)
+        list_season = list_seasons_by_num.get(num)
+        if synth_max <= 0 and list_season is not None:
+            synth_max = list_season.episode_count
+        if synth_max <= local_max:
             continue
         seasons.append(
             {
                 "season_num": num,
-                "season_name": tmdb_season.name,
+                "season_name": (detail or list_season).name,
                 "local_max_episode": local_max,
-                "latest_episode": max(e.num for e in missing),
-                "episodes": [
-                    {"num": e.num, "name": e.name, "date": e.get_date() or None}
-                    for e in missing
-                ],
+                "latest_episode": synth_max,
+                "episodes": [{"num": synth_max, "name": "整季", "date": None}],
             }
         )
     return show_dir, tmdb_tv_show.get_titles()[0], seasons

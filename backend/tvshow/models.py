@@ -291,6 +291,7 @@ class TmdbSeason(Season):
         episodes: List[TmdbEpisode],
         poster: Optional[str] = None,
         rate: Optional[Rate] = None,
+        episode_count: Optional[int] = None,
     ):
         super().__init__(num, name)
         self.date = date
@@ -299,6 +300,10 @@ class TmdbSeason(Season):
         self.min_episode = episodes[0].num if len(episodes) > 0 else 0
         self.poster = (TMDB_IMAGE_PATH + poster) if poster else None
         self.rate = rate
+        # episode_count from /tv/{id}.seasons[] is set even when no per-episode
+        # data exists yet (placeholder/upcoming seasons); the ignore dialog uses
+        # it as a fallback when /tv/{id}/season/{n} is unavailable or empty.
+        self.episode_count = episode_count if episode_count is not None else len(episodes)
 
     def get_episode(self, episode_num: int) -> Optional[TmdbEpisode]:
         return self.episodes.get(episode_num)

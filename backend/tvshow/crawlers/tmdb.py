@@ -37,6 +37,7 @@ def get_tmdb_tv_show(tv_show_id: int, cache: bool = True) -> Optional[TmdbTvShow
                 [],
                 poster=s.get("poster_path"),
                 rate=season_rate,
+                episode_count=s.get("episode_count") or 0,
             )
         )
     seasons = sorted(seasons, key=lambda s: s.num)
