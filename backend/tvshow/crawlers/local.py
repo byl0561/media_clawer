@@ -81,16 +81,22 @@ def process_file(path: str):
         if child.tag == "namedseason":
             num_2_season_name[int(child.attrib["number"])] = child.text
 
-    season_num_2_episodes = {}
+    # Dedup by (season, episode) so a split-into-parts episode (one NFO per
+    # part, e.g., `... - S06E23-PART1 - 求婚记.nfo` + `...-PART2-...nfo`) is
+    # counted once. The previous skip-anything-with-"PART" filter dropped
+    # episodes that only ship with PART NFOs (no aggregate NFO).
+    season_num_2_episodes: dict = {}
+    seen: set = set()
     for child, _dirs, files in os.walk(root):
         for file in files:
             if file == "tvshow.nfo" or file == "season.nfo" or not file.endswith(".nfo"):
                 continue
-            if "PART" in file or "part" in file:
-                continue
             tree = ET.parse(os.path.join(child, file))
             season_num = int(tree.find("season").text)
             episode_num = int(tree.find("episode").text)
+            if (season_num, episode_num) in seen:
+                continue
+            seen.add((season_num, episode_num))
             episode_title = tree.find("title").text
             episode_date = (
                 tree.find("premiered").text
