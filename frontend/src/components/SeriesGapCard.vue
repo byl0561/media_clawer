@@ -137,8 +137,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
          the "owned" and "missing" halves; horizontal stack on mobile. -->
     <div class="flex flex-col gap-4 md:flex-row md:gap-5">
       <!-- Left: header + horizontally centered deck (vertically centered in
-           the remaining column height) -->
-      <div class="shrink-0 md:flex md:flex-col">
+           the remaining column height). Hidden when there's nothing owned to
+           stack — e.g. the subtitle-gap rows are "missing only", no split. -->
+      <div v-if="row.local.length > 0" class="shrink-0 md:flex md:flex-col">
         <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
           已有 · {{ row.local.length }} 项
         </p>
@@ -229,9 +230,12 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
         </div>
       </div>
 
-      <!-- Divider between "owned" and "missing"; vertical on md+, horizontal stack on mobile -->
-      <div class="hidden self-stretch md:block md:w-px md:bg-border/60" aria-hidden="true"></div>
-      <div class="block h-px bg-border/60 md:hidden" aria-hidden="true"></div>
+      <!-- Divider between "owned" and "missing"; vertical on md+, horizontal
+           stack on mobile. Hidden when only the right side is rendered. -->
+      <template v-if="row.local.length > 0">
+        <div class="hidden self-stretch md:block md:w-px md:bg-border/60" aria-hidden="true"></div>
+        <div class="block h-px bg-border/60 md:hidden" aria-hidden="true"></div>
+      </template>
 
       <!-- Right: tiled missing items, each with its own score chip -->
       <div class="min-w-0 flex-1">
@@ -325,11 +329,12 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
       </div>
     </Teleport>
 
-    <!-- TV/anime per-season IgnoreDialog (reused from the old flow) -->
+    <!-- TV/anime per-season IgnoreDialog (reused for series + subtitle modes) -->
     <IgnoreDialog
       v-if="activeIgnore && activeIgnore.ignore"
       :library="activeIgnore.ignore!.library"
       :tmdb-id="activeIgnore.ignore!.tmdbId"
+      :mode="activeIgnore.ignore!.mode ?? 'series'"
       :title="row.title"
       @close="activeIgnore = null"
       @done="onIgnoreDialogDone"

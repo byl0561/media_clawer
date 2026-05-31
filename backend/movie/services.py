@@ -12,7 +12,13 @@ from typing import List, Optional
 
 from core import conf
 from core.exceptions import ShowNotFound, UpstreamUnavailable
-from core.local_config import add_aliases, add_skip_collection
+from core.local_config import (
+    add_aliases,
+    add_skip_collection,
+    read_config,
+    set_skip_subtitle_check,
+)
+from core.media_probe import VIDEO_EXTS, has_subtitle
 from movie.crawlers.douban import crawl_douban_250
 from movie.crawlers.local import crawl_local, file_filter
 from movie.crawlers.tmdb import get_tmdb_movie, get_tmdb_movies_in_set
@@ -228,6 +234,58 @@ def alias_targets() -> list:
         )
     targets.sort(key=lambda x: x["title"] or "")
     return targets
+
+
+def _folder_has_subtitle(folder: str) -> bool:
+    """Folder counts as 'has subtitle' if every video in it carries one.
+
+    Movie folders typically hold one video plus optional extras (trailers,
+    behind-the-scenes). Requiring all videos to have subtitles would over-
+    report; treating any present subtitle (external or embedded) on any
+    video in the folder as sufficient matches what the user means by "this
+    movie has a subtitle".
+    """
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return True
+    found_video = False
+    for name in names:
+        if os.path.splitext(name)[1].lower() not in VIDEO_EXTS:
+            continue
+        found_video = True
+        if has_subtitle(os.path.join(folder, name)):
+            return True
+    # No videos at all → nothing to flag (empty/incomplete folder).
+    return not found_video
+
+
+def subtitle_gaps() -> list:
+    """Local movies missing both external and embedded subtitles."""
+    result = []
+    for movie in crawl_local(conf.MOVIE_ROOT):
+        if not movie.path:
+            continue
+        cfg = read_config(movie.path)
+        if cfg.get("skip_subtitle_check"):
+            continue
+        if _folder_has_subtitle(movie.path):
+            continue
+        result.append(movie)
+    result.sort(key=lambda m: (m.title or "").lower())
+    return _serialize(result)
+
+
+def ignore_subtitle(tmdb_id: int) -> dict:
+    """Set ``skip_subtitle_check: true`` on the movie's ``.mediaclawer.json``."""
+    base = os.path.realpath(conf.MOVIE_ROOT)
+    movie_dir = _find_movie_dir(tmdb_id)
+    if movie_dir is None:
+        raise ShowNotFound()
+    target = os.path.realpath(movie_dir)
+    if target != base and not target.startswith(base + os.sep):
+        raise ShowNotFound()
+    return {"updated": set_skip_subtitle_check(target)}
 
 
 def ignore_collection(collection_id: int) -> dict:

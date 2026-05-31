@@ -14,8 +14,11 @@ from movie import services
 from movie.serializers import (
     IgnoreCollectionRequestSerializer,
     IgnoreCollectionResultSerializer,
+    IgnoreFlagResultSerializer,
+    IgnoreSubtitleRequestSerializer,
     MovieDiffSerializer,
     MovieSeriesGapSerializer,
+    MovieSerializer,
 )
 
 
@@ -36,6 +39,31 @@ class SeriesGapsView(APIView):
     )
     def get(self, request):
         return Response(services.series_gaps())
+
+
+class SubtitleGapsView(APIView):
+    """Local movies whose video files have no external or embedded subtitle."""
+
+    @extend_schema(
+        responses=MovieSerializer(many=True),
+        operation_id="movies_subtitle_gaps",
+    )
+    def get(self, request):
+        return Response(services.subtitle_gaps())
+
+
+class IgnoreSubtitleView(APIView):
+    """Mark a movie as ignored from the subtitle-gap report."""
+
+    @extend_schema(
+        request=IgnoreSubtitleRequestSerializer,
+        responses=IgnoreFlagResultSerializer,
+        operation_id="movies_ignore_subtitle",
+    )
+    def post(self, request):
+        body = IgnoreSubtitleRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        return Response(services.ignore_subtitle(body.validated_data["tmdb_id"]))
 
 
 class IgnoreCollectionView(APIView):

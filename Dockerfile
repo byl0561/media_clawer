@@ -9,7 +9,7 @@ RUN npm run build
 FROM python:3.9-slim
 LABEL authors="lava"
 RUN apt-get update && \
-    apt-get install -y cron nginx && \
+    apt-get install -y cron nginx ffmpeg && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=frontend-build /app/dist /usr/share/nginx/html

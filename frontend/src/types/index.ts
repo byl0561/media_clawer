@@ -2,10 +2,26 @@
 
 import type {BindLibrary, IgnoreLibrary} from "@/types/api";
 
-/** Set only on TV/anime 续集 right-side tiles: opens the per-show ignore dialog. */
+/** Set only on TV/anime 续集 right-side tiles: opens the per-show ignore dialog.
+ *
+ * ``mode`` switches which endpoints the dialog talks to:
+ * - ``"series"`` (default) — series gap (drives ``checked_episode``)
+ * - ``"subtitle"`` — subtitle gap (drives ``subtitle_checked_episode``)
+ */
 export interface IgnoreRef {
     library: IgnoreLibrary;
     tmdbId: number;
+    mode?: "series" | "subtitle";
+}
+
+/** Set on movie subtitle-gap tiles: confirm + POST /movies/ignore-subtitle. */
+export interface IgnoreSubtitleRef {
+    tmdbId: number;
+}
+
+/** Set on album lyric-gap tiles: confirm + POST /albums/ignore-lyric. */
+export interface IgnoreLyricRef {
+    token: string;
 }
 
 /** Set only on 最新 items: enables the per-poster bind-alias action. */
@@ -22,6 +38,10 @@ export interface MediaItem {
     link: string | null;
     ignore?: IgnoreRef;
     bind?: BindRef;
+    /** Set only on the 字幕 tab — movie variant only. */
+    ignoreSubtitle?: IgnoreSubtitleRef;
+    /** Set only on the 歌词 tab — album variant only. */
+    ignoreLyric?: IgnoreLyricRef;
 }
 
 export interface MediaItemGroupData {
@@ -64,6 +84,8 @@ export interface SeriesGroupData {
 /** A tab returns either the flat item list or the series-card list. */
 export interface MediaItemFunctionGroup {
     name: string;
+    /** Optional display label used by the Overview cards. Defaults to ``name``. */
+    overviewLabel?: string;
     acquireData?: () => Promise<MediaItemGroupData>;
     acquireSeries?: () => Promise<SeriesGroupData>;
 }

@@ -22,6 +22,9 @@ __all__ = [
     "add_aliases",
     "add_skip_collection",
     "set_season_checked",
+    "set_season_subtitle_checked",
+    "set_skip_subtitle_check",
+    "set_skip_lyric_check",
 ]
 
 CONFIG_FILE = ".mediaclawer.json"
@@ -95,8 +98,43 @@ def add_skip_collection(folder: str, collection_id: int) -> bool:
 
 def set_season_checked(folder: str, season_num: int, episode: int) -> None:
     """Set / overwrite the ``checked_episode`` cutoff for one season."""
+    _update_season_field(folder, season_num, "checked_episode", episode)
+
+
+def set_season_subtitle_checked(folder: str, season_num: int, episode: int) -> None:
+    """Set / overwrite the ``subtitle_checked_episode`` cutoff for one season.
+
+    Kept separate from ``checked_episode`` on purpose: "I have enough of this
+    season" (series gap) and "these early episodes can be subtitle-less"
+    (subtitle gap) are different decisions and shouldn't fight.
+    """
+    _update_season_field(folder, season_num, "subtitle_checked_episode", episode)
+
+
+def _update_season_field(folder: str, season_num: int, field: str, value: int) -> None:
     data = read_config(folder)
     seasons: Dict[str, dict] = dict(data.get("seasons") or {})
-    seasons[str(season_num)] = {"checked_episode": episode}
+    entry = dict(seasons.get(str(season_num)) or {})
+    entry[field] = value
+    seasons[str(season_num)] = entry
     data["seasons"] = seasons
     _write_json(folder, data)
+
+
+def set_skip_subtitle_check(folder: str) -> bool:
+    """Idempotent: mark this item as ignored from the subtitle-gap report."""
+    return _set_flag(folder, "skip_subtitle_check")
+
+
+def set_skip_lyric_check(folder: str) -> bool:
+    """Idempotent: mark this album as ignored from the lyric-gap report."""
+    return _set_flag(folder, "skip_lyric_check")
+
+
+def _set_flag(folder: str, key: str) -> bool:
+    data = read_config(folder)
+    if data.get(key) is True:
+        return False
+    data[key] = True
+    _write_json(folder, data)
+    return True

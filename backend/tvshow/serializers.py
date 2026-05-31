@@ -56,6 +56,24 @@ class SeriesGapSerializer(serializers.Serializer):
     incomplete_seasons = IncompleteSeasonSerializer(many=True)
 
 
+class SubtitleGapSeasonSerializer(serializers.Serializer):
+    """A season tile in the subtitle-gap card."""
+
+    num = serializers.IntegerField()
+    name = serializers.CharField()
+    poster = serializers.CharField(allow_null=True, required=False)
+    score = serializers.FloatField(allow_null=True, required=False)
+    missing_count = serializers.IntegerField()
+    max_missing_episode = serializers.IntegerField()
+
+
+class SubtitleGapSerializer(serializers.Serializer):
+    """`GET /api/v1/{tv-shows,anime}/subtitle-gaps` row."""
+
+    show = TvShowSerializer()
+    seasons = SubtitleGapSeasonSerializer(many=True)
+
+
 # --- Ignore dialog -----------------------------------------------------
 
 

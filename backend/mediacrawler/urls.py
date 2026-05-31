@@ -28,6 +28,16 @@ urlpatterns = [
         name="movies-ignore-collection",
     ),
     path(
+        "v1/movies/subtitle-gaps",
+        movie_views.SubtitleGapsView.as_view(),
+        name="movies-subtitle-gaps",
+    ),
+    path(
+        "v1/movies/ignore-subtitle",
+        movie_views.IgnoreSubtitleView.as_view(),
+        name="movies-ignore-subtitle",
+    ),
+    path(
         "v1/movies/poster/<path:image_path>",
         movie_views.poster,
         name="movies-poster",
@@ -74,6 +84,21 @@ urlpatterns = [
         tv_views.TvAliasBindView.as_view(),
         name="tv-shows-alias-bind",
     ),
+    path(
+        "v1/tv-shows/subtitle-gaps",
+        tv_views.TvSubtitleGapsView.as_view(),
+        name="tv-shows-subtitle-gaps",
+    ),
+    path(
+        "v1/tv-shows/subtitle-ignore-options",
+        tv_views.TvSubtitleIgnoreOptionsView.as_view(),
+        name="tv-shows-subtitle-ignore-options",
+    ),
+    path(
+        "v1/tv-shows/ignore-subtitle",
+        tv_views.TvSubtitleIgnoreView.as_view(),
+        name="tv-shows-ignore-subtitle",
+    ),
     # Anime (served by the tvshow app)
     path("v1/anime/diff", tv_views.AnimeDiffView.as_view(), name="anime-diff"),
     path(
@@ -106,6 +131,21 @@ urlpatterns = [
         tv_views.AnimeAliasBindView.as_view(),
         name="anime-alias-bind",
     ),
+    path(
+        "v1/anime/subtitle-gaps",
+        tv_views.AnimeSubtitleGapsView.as_view(),
+        name="anime-subtitle-gaps",
+    ),
+    path(
+        "v1/anime/subtitle-ignore-options",
+        tv_views.AnimeSubtitleIgnoreOptionsView.as_view(),
+        name="anime-subtitle-ignore-options",
+    ),
+    path(
+        "v1/anime/ignore-subtitle",
+        tv_views.AnimeSubtitleIgnoreView.as_view(),
+        name="anime-ignore-subtitle",
+    ),
     # Albums
     path("v1/albums/diff", music_views.DiffView.as_view(), name="albums-diff"),
     path(
@@ -122,6 +162,16 @@ urlpatterns = [
         "v1/albums/alias-bind",
         music_views.AliasBindView.as_view(),
         name="albums-alias-bind",
+    ),
+    path(
+        "v1/albums/lyric-gaps",
+        music_views.LyricGapsView.as_view(),
+        name="albums-lyric-gaps",
+    ),
+    path(
+        "v1/albums/ignore-lyric",
+        music_views.IgnoreLyricView.as_view(),
+        name="albums-ignore-lyric",
     ),
     # Books
     path("v1/books/diff", book_views.DiffView.as_view(), name="books-diff"),

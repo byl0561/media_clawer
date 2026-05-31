@@ -59,7 +59,9 @@ export function useOverviewData(): {
             }),
         );
         const counts: CardCount[] = tabs.map((tab, i) => ({
-            name: tab.name,
+            // Use the tab's overview-specific label when set (e.g. tab name
+            // "字幕" displays as "缺失字幕" on the overview).
+            name: tab.overviewLabel ?? tab.name,
             value: results[i],
         }));
         const status = results.every((r) => r == null) ? "error" : "ok";

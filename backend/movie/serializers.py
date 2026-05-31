@@ -44,3 +44,15 @@ class IgnoreCollectionResultSerializer(serializers.Serializer):
     """How many local movies actually had the id newly written."""
 
     updated = serializers.IntegerField()
+
+
+class IgnoreSubtitleRequestSerializer(serializers.Serializer):
+    """`POST /api/v1/movies/ignore-subtitle` request body."""
+
+    tmdb_id = serializers.IntegerField()
+
+
+class IgnoreFlagResultSerializer(serializers.Serializer):
+    """True iff the flag was newly written (idempotent re-clicks return False)."""
+
+    updated = serializers.BooleanField()

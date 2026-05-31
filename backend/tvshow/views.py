@@ -18,6 +18,7 @@ from tvshow.serializers import (
     IgnoreResultSerializer,
     SeriesGapSerializer,
     ShowDiffSerializer,
+    SubtitleGapSerializer,
 )
 
 
@@ -55,6 +56,74 @@ class AnimeSeriesGapsView(APIView):
     )
     def get(self, request):
         return Response(services.series_gaps("anime"))
+
+
+class _SubtitleGapsView(APIView):
+    """Per-show seasons whose local episodes lack subtitles."""
+
+    library: str = ""
+
+    @extend_schema(responses=SubtitleGapSerializer(many=True))
+    def get(self, request):
+        return Response(services.subtitle_gaps(self.library))
+
+
+class _SubtitleIgnoreOptionsView(APIView):
+    """Lacking-subtitle episode list the subtitle-ignore dialog renders."""
+
+    library: str = ""
+
+    @extend_schema(responses=IgnoreOptionsSerializer)
+    def get(self, request):
+        raw = request.query_params.get("tmdb_id")
+        try:
+            tmdb_id = int(raw)
+        except (TypeError, ValueError):
+            raise ValidationError({"tmdb_id": "integer query param required"})
+        return Response(services.subtitle_ignore_options(self.library, tmdb_id))
+
+
+class _SubtitleIgnoreView(APIView):
+    """Persist per-season ``subtitle_checked_episode`` cutoffs to the JSON."""
+
+    library: str = ""
+
+    @extend_schema(
+        request=IgnoreRequestSerializer, responses=IgnoreResultSerializer
+    )
+    def post(self, request):
+        body = IgnoreRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        return Response(
+            services.subtitle_ignore_apply(
+                self.library, data["tmdb_id"], data["selections"]
+            )
+        )
+
+
+class TvSubtitleGapsView(_SubtitleGapsView):
+    library = "tv"
+
+
+class AnimeSubtitleGapsView(_SubtitleGapsView):
+    library = "anime"
+
+
+class TvSubtitleIgnoreOptionsView(_SubtitleIgnoreOptionsView):
+    library = "tv"
+
+
+class AnimeSubtitleIgnoreOptionsView(_SubtitleIgnoreOptionsView):
+    library = "anime"
+
+
+class TvSubtitleIgnoreView(_SubtitleIgnoreView):
+    library = "tv"
+
+
+class AnimeSubtitleIgnoreView(_SubtitleIgnoreView):
+    library = "anime"
 
 
 class _IgnoreOptionsView(APIView):

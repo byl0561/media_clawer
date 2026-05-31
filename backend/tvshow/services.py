@@ -16,7 +16,13 @@ from typing import List, Optional, Tuple
 
 from core import conf
 from core.exceptions import ShowNotFound, UpstreamUnavailable
-from core.local_config import add_aliases, set_season_checked
+from core.local_config import (
+    add_aliases,
+    read_config,
+    set_season_checked,
+    set_season_subtitle_checked,
+)
+from core.media_probe import has_subtitle
 from tvshow.crawlers.bangumi import crawl_bangumi_tv_show_80
 from tvshow.crawlers.douban import crawl_dou_list
 from tvshow.crawlers.local import crawl_local, process_file
@@ -150,26 +156,29 @@ def series_gaps(library: str) -> list:
             if local_tv_show.get_season(s.num) is None and _legal_season(s)
         ]
 
+        # "Incomplete" used to mean "ep > local_max"; switch to "any aired
+        # episode missing from the local set" so middle gaps (1,2,4,5 with
+        # 3 missing) get reported too.
         incomplete_seasons = []
-        for season_num, max_episode in local_tv_show.map_season_max_episode().items():
+        for season_num, present_eps in local_tv_show.map_season_episodes().items():
             tmdb_season = get_tmdb_tv_show_season(local_tv_show.tmdb_id, season_num)
-            if tmdb_season is None or tmdb_season.get_max_episode_num() <= max_episode:
+            if tmdb_season is None:
                 continue
-
-            missing_max_episode = -1
-            for tmdb_episode in tmdb_season.list_episodes():
-                if tmdb_episode.num > max_episode and _legal_episode(tmdb_episode):
-                    missing_max_episode = max(missing_max_episode, tmdb_episode.num)
-
-            if missing_max_episode > max_episode:
-                incomplete_seasons.append(
-                    {
-                        "season_num": season_num,
-                        "season_name": tmdb_season.name,
-                        "local_max_episode": max_episode,
-                        "remote_max_episode": missing_max_episode,
-                    }
-                )
+            aired_missing = [
+                e.num
+                for e in tmdb_season.list_episodes()
+                if e.num not in present_eps and _legal_episode(e)
+            ]
+            if not aired_missing:
+                continue
+            incomplete_seasons.append(
+                {
+                    "season_num": season_num,
+                    "season_name": tmdb_season.name,
+                    "local_max_episode": max(present_eps) if present_eps else 0,
+                    "remote_max_episode": max(aired_missing),
+                }
+            )
 
         if not missing_seasons and not incomplete_seasons:
             continue
@@ -254,8 +263,8 @@ def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
     if local_tv_show is None or tmdb_tv_show is None:
         return show_dir, "", []
 
-    season_max = local_tv_show.map_season_max_episode()
-    candidates = set(season_max)
+    present_per_season = local_tv_show.map_season_episodes()
+    candidates = set(present_per_season)
     list_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
     for tmdb_season in tmdb_tv_show.list_seasons():
         if local_tv_show.get_season(tmdb_season.num) is None and _legal_season(
@@ -265,16 +274,17 @@ def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
 
     seasons = []
     for num in sorted(candidates):
-        local_max = season_max.get(num, 0)
+        present_eps = present_per_season.get(num, set())
+        local_max = max(present_eps) if present_eps else 0
         detail = get_tmdb_tv_show_season(tmdb_id, num)
 
-        # Happy path: per-season detail exists and has aired episodes the
-        # user is behind on.
+        # Happy path: per-season detail exists and the user is behind on any
+        # aired episode (not just the trailing ones).
         aired = (
             [
                 e
                 for e in detail.list_episodes()
-                if e.num > local_max and _legal_episode(e)
+                if e.num not in present_eps and _legal_episode(e)
             ]
             if detail is not None
             else []
@@ -294,10 +304,8 @@ def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
             )
             continue
 
-        # Fallback: no per-episode data we can offer (either the detail
-        # endpoint failed/was rate-limited, or every episode has air_date
-        # null / in the future). The season still showed up in the 续集
-        # page, so the user must be able to dismiss it — synthesise a
+        # Fallback: no per-episode data we can offer. The season still showed
+        # up in 续集, so the user must be able to dismiss it — synthesise a
         # single "整季" entry using whatever max-episode hint we have.
         synth_max = 0
         if detail is not None:
@@ -349,6 +357,172 @@ def ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
         if episode < 0:
             continue
         set_season_checked(show_dir, season_num, episode)
+
+    return {"fully_ignored": fully_ignored}
+
+
+# --- Subtitle gap + per-season subtitle ignore --------------------------
+# Mirrors the series-gap structure: one entry per show, listing the seasons
+# whose local episodes have at least one missing subtitle (external file or
+# embedded stream). The "已有/待加" split doesn't apply here — only the
+# affected seasons are shown — so we surface them through ``missing_seasons``
+# with a ``missing_count`` annotation and leave ``local_seasons`` /
+# ``incomplete_seasons`` empty.
+
+
+def _episode_subtitle_missing(local_ep) -> bool:
+    """True iff this episode has a video on disk and no subtitle for it."""
+    if not local_ep.video_path:
+        return False
+    return not has_subtitle(local_ep.video_path)
+
+
+def _season_subtitle_gap(local_season, subtitle_cutoff: int):
+    """Numbers of episodes in this season above ``subtitle_cutoff`` missing subs."""
+    return [
+        ep.num
+        for ep in local_season.episodes.values()
+        if ep.num > subtitle_cutoff and _episode_subtitle_missing(ep)
+    ]
+
+
+def _read_subtitle_cutoffs(folder: str) -> dict:
+    """Per-season ``subtitle_checked_episode`` map from the show's JSON."""
+    cfg = read_config(folder) if folder else {}
+    out: dict = {}
+    for k, v in (cfg.get("seasons") or {}).items():
+        try:
+            num = int(k)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(v, dict):
+            continue
+        cutoff = v.get("subtitle_checked_episode")
+        if isinstance(cutoff, int):
+            out[num] = cutoff
+    return out
+
+
+def subtitle_gaps(library: str) -> list:
+    """Per-show seasons whose local episodes are missing a subtitle.
+
+    Any single episode (above the user's per-season ``subtitle_checked_episode``
+    cutoff) without an external sibling or embedded subtitle marks the whole
+    season for attention.
+    """
+    result = []
+    for local_tv_show in crawl_local(_LIBRARY_ROOT[library]):
+        tmdb_tv_show = get_tmdb_tv_show(local_tv_show.tmdb_id)
+        if tmdb_tv_show is None:
+            continue
+
+        cutoffs = _read_subtitle_cutoffs(local_tv_show.path or "")
+        tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
+
+        gap_seasons = []
+        for num, local_season in local_tv_show.seasons.items():
+            cutoff = cutoffs.get(num, 0)
+            missing_eps = _season_subtitle_gap(local_season, cutoff)
+            if not missing_eps:
+                continue
+            tmdb_season = tmdb_seasons_by_num.get(num)
+            gap_seasons.append(
+                {
+                    "num": num,
+                    "name": tmdb_season.name if tmdb_season else f"第 {num} 季",
+                    "poster": tmdb_season.poster if tmdb_season else None,
+                    "score": (
+                        round(tmdb_season.rate.score, 1)
+                        if tmdb_season and tmdb_season.rate and tmdb_season.rate.score > 0
+                        else None
+                    ),
+                    "missing_count": len(missing_eps),
+                    "max_missing_episode": max(missing_eps),
+                }
+            )
+
+        if not gap_seasons:
+            continue
+        gap_seasons.sort(key=lambda s: s["num"])
+        result.append(
+            {
+                "show": TvShowSerializer(tmdb_tv_show).data,
+                "seasons": gap_seasons,
+            }
+        )
+    return result
+
+
+def subtitle_ignore_options(library: str, tmdb_id: int) -> dict:
+    """Per-season episode list that the subtitle-ignore dialog renders."""
+    root = _LIBRARY_ROOT[library]
+    show_dir = _find_show_dir(root, tmdb_id)
+    if show_dir is None:
+        raise ShowNotFound()
+
+    try:
+        local_tv_show = process_file(os.path.join(show_dir, "tvshow.nfo"))
+    except (ET.ParseError, ValueError, TypeError, AttributeError):
+        local_tv_show = None
+    tmdb_tv_show = get_tmdb_tv_show(tmdb_id)
+    if local_tv_show is None or tmdb_tv_show is None:
+        return {"title": "", "seasons": []}
+
+    cutoffs = _read_subtitle_cutoffs(show_dir)
+    tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
+
+    seasons = []
+    for num in sorted(local_tv_show.seasons.keys()):
+        local_season = local_tv_show.seasons[num]
+        cutoff = cutoffs.get(num, 0)
+        missing_eps = _season_subtitle_gap(local_season, cutoff)
+        if not missing_eps:
+            continue
+        missing_eps.sort()
+        tmdb_season = tmdb_seasons_by_num.get(num)
+        # Build per-episode picker entries from the local episodes that lack
+        # subtitle — that's what "ignore subtitle up to ep N" actually means.
+        episode_entries = []
+        for ep_num in missing_eps:
+            ep = local_season.episodes.get(ep_num)
+            episode_entries.append(
+                {
+                    "num": ep_num,
+                    "name": (ep.name if ep else "") or f"第 {ep_num} 集",
+                    "date": (ep.date or None) if ep else None,
+                }
+            )
+        seasons.append(
+            {
+                "season_num": num,
+                "season_name": tmdb_season.name if tmdb_season else f"第 {num} 季",
+                "local_max_episode": cutoff,
+                "latest_episode": missing_eps[-1],
+                "episodes": episode_entries,
+            }
+        )
+
+    return {"title": tmdb_tv_show.get_titles()[0], "seasons": seasons}
+
+
+def subtitle_ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
+    """Persist per-season ``subtitle_checked_episode`` cutoffs to the JSON."""
+    root = _LIBRARY_ROOT[library]
+    show_dir = _find_show_dir(root, tmdb_id)
+    if show_dir is None:
+        raise ShowNotFound()
+
+    chosen = {int(s["season_num"]): int(s["episode"]) for s in selections}
+    options = subtitle_ignore_options(library, tmdb_id)
+    fully_ignored = bool(options["seasons"]) and all(
+        g["season_num"] in chosen and chosen[g["season_num"]] >= g["latest_episode"]
+        for g in options["seasons"]
+    )
+
+    for season_num, episode in chosen.items():
+        if episode < 0:
+            continue
+        set_season_subtitle_checked(show_dir, season_num, episode)
 
     return {"fully_ignored": fully_ignored}
 

@@ -2,6 +2,7 @@ import {httpGet, httpPost} from "@/http/client";
 import type {
     AlbumAliasTarget,
     AlbumItem,
+    AlbumLyricGap,
     AliasBindResult,
     AliasTarget,
     BindLibrary,
@@ -9,6 +10,7 @@ import type {
     BookItem,
     Diff,
     IgnoreCollectionResult,
+    IgnoreFlagResult,
     IgnoreLibrary,
     IgnoreOptions,
     IgnoreResult,
@@ -17,6 +19,7 @@ import type {
     MovieSeriesGap,
     ShowItem,
     ShowSeriesGap,
+    SubtitleShowGap,
     TmdbBindLibrary,
     TokenBindLibrary,
 } from "@/types/api";
@@ -57,20 +60,51 @@ export const animeSeriesGaps = () =>
 export const diffAlbum = () => httpGet<Diff<AlbumItem>>(`${V1}/albums/diff`);
 export const diffBook = () => httpGet<Diff<BookItem>>(`${V1}/books/diff`);
 
-export const ignoreOptions = (library: IgnoreLibrary, tmdbId: number) =>
-    httpGet<IgnoreOptions>(
-        `${V1}/${IGNORE_SEGMENT[library]}/ignore-options?tmdb_id=${tmdbId}`,
-    );
+// --- Subtitle / lyric gaps ----------------------------------------------
+
+export const movieSubtitleGaps = () =>
+    httpGet<MovieItem[]>(`${V1}/movies/subtitle-gaps`);
+export const ignoreMovieSubtitle = (tmdbId: number) =>
+    httpPost<IgnoreFlagResult>(`${V1}/movies/ignore-subtitle`, {tmdb_id: tmdbId});
+
+export const tvSubtitleGaps = () =>
+    httpGet<SubtitleShowGap[]>(`${V1}/tv-shows/subtitle-gaps`);
+export const animeSubtitleGaps = () =>
+    httpGet<SubtitleShowGap[]>(`${V1}/anime/subtitle-gaps`);
+
+export const albumLyricGaps = () =>
+    httpGet<AlbumLyricGap[]>(`${V1}/albums/lyric-gaps`);
+export const ignoreAlbumLyric = (token: string) =>
+    httpPost<IgnoreFlagResult>(`${V1}/albums/ignore-lyric`, {token});
+
+// --- Per-show ignore dialogs (series + subtitle modes) ------------------
+
+export const ignoreOptions = (
+    library: IgnoreLibrary,
+    tmdbId: number,
+    mode: "series" | "subtitle" = "series",
+) => {
+    const segment = IGNORE_SEGMENT[library];
+    const path =
+        mode === "subtitle"
+            ? `${segment}/subtitle-ignore-options`
+            : `${segment}/ignore-options`;
+    return httpGet<IgnoreOptions>(`${V1}/${path}?tmdb_id=${tmdbId}`);
+};
 
 export const applyIgnore = (
     library: IgnoreLibrary,
     tmdbId: number,
     selections: IgnoreSelection[],
-) =>
-    httpPost<IgnoreResult>(`${V1}/${IGNORE_SEGMENT[library]}/ignore`, {
+    mode: "series" | "subtitle" = "series",
+) => {
+    const segment = IGNORE_SEGMENT[library];
+    const path = mode === "subtitle" ? `${segment}/ignore-subtitle` : `${segment}/ignore`;
+    return httpPost<IgnoreResult>(`${V1}/${path}`, {
         tmdb_id: tmdbId,
         selections,
     });
+};
 
 // Two response shapes — tmdb-id libraries vs token-keyed libraries — share
 // the same endpoint name but differ in row schema.

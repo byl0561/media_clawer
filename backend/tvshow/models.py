@@ -160,10 +160,21 @@ class BangumiTvShow(TvShow):
 
 
 class LocalEpisode(Episode):
-    def __init__(self, num: int, name: str, date: Optional[str], run_minus: int):
+    def __init__(
+        self,
+        num: int,
+        name: str,
+        date: Optional[str],
+        run_minus: int,
+        video_path: Optional[str] = None,
+    ):
         super().__init__(num, name)
         self.date = date
         self.run_minus = run_minus
+        # Absolute path of the video file next to this episode's NFO. Used by
+        # the subtitle-gap check; None when the NFO has no matching video
+        # (e.g. the scraper wrote the NFO before the file arrived).
+        self.video_path = video_path
 
     def get_year(self) -> int:
         if self.date is None:
@@ -273,6 +284,22 @@ class LocalTvShow(TvShow):
                 season.get_max_episode_num(), season_max_episode.get(season.num, 0)
             )
         return season_max_episode
+
+    def map_season_episodes(self):
+        """Map season num → set of episode numbers locally present.
+
+        A shadow season (user-ignored up to ``checked_episode``) contributes
+        the contiguous range ``1..checked_max_episode`` so the gap check
+        treats those episodes as satisfied even when no NFO sits on disk.
+        """
+        out = {}
+        for season in self.seasons.values():
+            out[season.num] = set(season.episodes.keys())
+        for shadow in self.shadow_seasons.values():
+            existing = out.setdefault(shadow.num, set())
+            for n in range(1, shadow.checked_max_episode + 1):
+                existing.add(n)
+        return out
 
     def get_poster(self) -> Optional[str]:
         return self.poster

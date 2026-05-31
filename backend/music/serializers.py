@@ -20,3 +20,25 @@ class AlbumDiffSerializer(serializers.Serializer):
 
     missing = AlbumSerializer(many=True)
     extra = AlbumSerializer(many=True)
+
+
+class AlbumLyricGapSerializer(serializers.Serializer):
+    """One row of `GET /api/v1/albums/lyric-gaps` — token-keyed for ignore."""
+
+    token = serializers.CharField()
+    title = serializers.CharField()
+    artist = serializers.CharField(allow_null=True, required=False)
+    year = serializers.IntegerField(required=False)
+    poster = serializers.CharField(allow_null=True, required=False)
+
+
+class IgnoreLyricRequestSerializer(serializers.Serializer):
+    """`POST /api/v1/albums/ignore-lyric` request body."""
+
+    token = serializers.CharField()
+
+
+class IgnoreLyricResultSerializer(serializers.Serializer):
+    """True iff the flag was newly written (idempotent re-clicks return False)."""
+
+    updated = serializers.BooleanField()

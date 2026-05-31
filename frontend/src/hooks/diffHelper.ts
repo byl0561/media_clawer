@@ -1,13 +1,16 @@
 import type {MediaItem, MediaItemGroupData, SeriesGroupData, SeriesPoster, SeriesRow} from "@/types";
 import type {ApiResult} from "@/http/client";
 import type {
+    AlbumLyricGap,
     BindLibrary,
     IgnoreLibrary,
     IncompleteSeason,
     MediaItemDTO,
+    MovieItem,
     MovieSeriesGap,
     SeasonRef,
     ShowSeriesGap,
+    SubtitleShowGap,
 } from "@/types/api";
 
 export type Loader<T> = () => Promise<ApiResult<T>>;
@@ -164,4 +167,82 @@ async function collectSeries<T>(
     if (res.data == null) return group;
     group.rows = rows(res.data);
     return group;
+}
+
+// --- Subtitle / lyric gap builders --------------------------------------
+
+/** Flat list of local movies missing a subtitle. Each tile carries an
+ *  `ignoreSubtitle` ref that triggers the per-poster confirm dialog. */
+export function buildMovieSubtitleGroup(
+    load: Loader<MovieItem[]>,
+): Promise<MediaItemGroupData> {
+    return collect(load, (movies, items) => {
+        for (const m of movies) {
+            const media = toMedia(m);
+            // Local movies always have a TMDB id, but parse defensively.
+            const tmdbAny = m as MovieItem & {tmdb_id?: number};
+            if (m.link) {
+                const match = m.link.match(/\/movie\/(\d+)/);
+                if (match) media.ignoreSubtitle = {tmdbId: Number(match[1])};
+            } else if (tmdbAny.tmdb_id != null) {
+                media.ignoreSubtitle = {tmdbId: tmdbAny.tmdb_id};
+            }
+            items.push(media);
+        }
+    });
+}
+
+/** Flat list of local albums whose tracks lack lyrics. Each tile carries an
+ *  `ignoreLyric` ref keyed by signed path token. */
+export function buildAlbumLyricGroup(
+    load: Loader<AlbumLyricGap[]>,
+): Promise<MediaItemGroupData> {
+    return collect(load, (albums, items) => {
+        for (const a of albums) {
+            items.push({
+                title: a.title,
+                img: a.poster,
+                score: null,
+                link: null,
+                ignoreLyric: {token: a.token},
+            });
+        }
+    });
+}
+
+/** TV/anime subtitle gap → SeriesRow with empty local (flat right-grid only).
+ *  Each season tile triggers the IgnoreDialog in subtitle mode. */
+export function buildShowSubtitleSeries(
+    load: Loader<SubtitleShowGap[]>,
+    library: IgnoreLibrary,
+): Promise<SeriesGroupData> {
+    return collectSeries(load, (gaps) =>
+        gaps.map((gap) => {
+            const tmdbId = gap.show.tmdb_id;
+            const ignore =
+                tmdbId != null
+                    ? ({library, tmdbId, mode: "subtitle"} as const)
+                    : undefined;
+            const tiles: SeriesPoster[] = gap.seasons.map((s) => ({
+                title:
+                    s.missing_count > 1
+                        ? `${s.name} · 缺 ${s.missing_count} 集`
+                        : `${s.name} · 缺 1 集`,
+                poster: s.poster,
+                link:
+                    tmdbId != null
+                        ? `https://www.themoviedb.org/tv/${tmdbId}/season/${s.num}`
+                        : null,
+                score: s.score ?? null,
+                ignore,
+            }));
+            return {
+                title: gap.show.title,
+                link: gap.show.link,
+                score: gap.show.score,
+                local: [],
+                missing: tiles,
+            };
+        }),
+    );
 }

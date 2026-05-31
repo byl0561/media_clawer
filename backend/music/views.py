@@ -11,7 +11,12 @@ from core.serializers import (
     TokenAliasBindRequestSerializer,
 )
 from music import services
-from music.serializers import AlbumDiffSerializer
+from music.serializers import (
+    AlbumDiffSerializer,
+    AlbumLyricGapSerializer,
+    IgnoreLyricRequestSerializer,
+    IgnoreLyricResultSerializer,
+)
 
 
 class DiffView(APIView):
@@ -46,6 +51,31 @@ class AliasBindView(APIView):
         body.is_valid(raise_exception=True)
         data = body.validated_data
         return Response(services.alias_bind(data["token"], data["aliases"]))
+
+
+class LyricGapsView(APIView):
+    """Local albums whose tracks are missing embedded lyrics."""
+
+    @extend_schema(
+        responses=AlbumLyricGapSerializer(many=True),
+        operation_id="albums_lyric_gaps",
+    )
+    def get(self, request):
+        return Response(services.lyric_gaps())
+
+
+class IgnoreLyricView(APIView):
+    """Mark an album as ignored from the lyric-gap report."""
+
+    @extend_schema(
+        request=IgnoreLyricRequestSerializer,
+        responses=IgnoreLyricResultSerializer,
+        operation_id="albums_ignore_lyric",
+    )
+    def post(self, request):
+        body = IgnoreLyricRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        return Response(services.ignore_lyric(body.validated_data["token"]))
 
 
 def cover(request, image_path):

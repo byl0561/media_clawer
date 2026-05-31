@@ -7,6 +7,10 @@ const props = defineProps<{
   library: IgnoreLibrary;
   tmdbId: number;
   title: string;
+  // "series" (default) → /ignore-options + /ignore (writes checked_episode)
+  // "subtitle"        → /subtitle-ignore-options + /ignore-subtitle
+  //                     (writes subtitle_checked_episode)
+  mode?: "series" | "subtitle";
 }>()
 
 const emit = defineEmits<{
@@ -36,7 +40,7 @@ const canSubmit = computed(() => selections.value.length > 0 && !submitting.valu
 async function load(): Promise<void> {
   loading.value = true
   failed.value = false
-  const res = await ignoreOptions(props.library, props.tmdbId)
+  const res = await ignoreOptions(props.library, props.tmdbId, props.mode ?? "series")
   if (!res.success || res.data == null) {
     failed.value = true
   } else {
@@ -52,7 +56,12 @@ async function submit(): Promise<void> {
   if (!canSubmit.value) return
   submitting.value = true
   submitFailed.value = false
-  const res = await applyIgnore(props.library, props.tmdbId, selections.value)
+  const res = await applyIgnore(
+    props.library,
+    props.tmdbId,
+    selections.value,
+    props.mode ?? "series",
+  )
   submitting.value = false
   if (!res.success || res.data == null) {
     submitFailed.value = true

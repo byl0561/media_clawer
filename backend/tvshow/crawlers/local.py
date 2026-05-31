@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 
 from core import conf, scanning
 from core.local_config import read_config
+from core.media_probe import VIDEO_EXTS
 from tvshow.models import LocalEpisode, LocalSeason, LocalShadowSeason, LocalTvShow, Rate
 
 
@@ -91,12 +92,22 @@ def process_file(path: str):
         for file in files:
             if file == "tvshow.nfo" or file == "season.nfo" or not file.endswith(".nfo"):
                 continue
-            tree = ET.parse(os.path.join(child, file))
+            nfo_path = os.path.join(child, file)
+            tree = ET.parse(nfo_path)
             season_num = int(tree.find("season").text)
             episode_num = int(tree.find("episode").text)
             if (season_num, episode_num) in seen:
                 continue
             seen.add((season_num, episode_num))
+            # Locate the matching video file (same basename, different ext)
+            # so the subtitle probe can hit it directly without walking again.
+            base = os.path.splitext(nfo_path)[0]
+            video_path = None
+            for ext in VIDEO_EXTS:
+                candidate = base + ext
+                if os.path.exists(candidate):
+                    video_path = candidate
+                    break
             episode_title = tree.find("title").text
             episode_date = (
                 tree.find("premiered").text
@@ -114,7 +125,10 @@ def process_file(path: str):
 
             episodes = season_num_2_episodes.get(season_num, [])
             episodes.append(
-                LocalEpisode(episode_num, episode_title, episode_date, run_minus)
+                LocalEpisode(
+                    episode_num, episode_title, episode_date, run_minus,
+                    video_path=video_path,
+                )
             )
             season_num_2_episodes[season_num] = episodes
 

@@ -78,6 +78,33 @@ export interface ShowSeriesGap {
     incomplete_seasons: IncompleteSeason[];
 }
 
+/** One season tile in the subtitle-gap card. */
+export interface SubtitleGapSeason {
+    num: number;
+    name: string;
+    poster: string | null;
+    score?: number | null;
+    /** Count of episodes in this season missing a subtitle. */
+    missing_count: number;
+    /** Highest such episode number — drives the ignore dialog's "整季" choice. */
+    max_missing_episode: number;
+}
+
+/** `GET /api/v1/{tv-shows,anime}/subtitle-gaps` row. */
+export interface SubtitleShowGap {
+    show: ShowItem;
+    seasons: SubtitleGapSeason[];
+}
+
+/** `GET /api/v1/albums/lyric-gaps` row (token-keyed for the ignore action). */
+export interface AlbumLyricGap {
+    token: string;
+    title: string;
+    artist: string | null;
+    year: number;
+    poster: string | null;
+}
+
 /** One episode the user could ignore up to (from TMDB, on dialog open). */
 export interface IgnoreEpisode {
     num: number;
@@ -116,6 +143,11 @@ export interface IgnoreResult {
 export interface IgnoreCollectionResult {
     /** How many local movies now carry this collection id in skip_collections. */
     updated: number;
+}
+
+export interface IgnoreFlagResult {
+    /** True iff the per-item skip flag was newly written. */
+    updated: boolean;
 }
 
 /** One row of `/{movies,tv-shows,anime}/alias-targets` (id-keyed). */
