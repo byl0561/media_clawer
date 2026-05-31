@@ -77,6 +77,10 @@ def get_dou_list_total_page(url: str, cache: bool = True) -> int:
 
     bs = bs4.BeautifulSoup(res, "html.parser")
     paginator = bs.find("div", class_="paginator")
+    # Single-page doulists have no paginator block; treat as 1 page rather
+    # than crashing on the next .find_all (also covers Douban layout drift).
+    if paginator is None:
+        return 1
     max_number = 1
     for page_number in paginator.find_all("a"):
         number = page_number.get_text().strip()
