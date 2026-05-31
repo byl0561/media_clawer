@@ -159,7 +159,12 @@ def has_lyrics(audio_path: str) -> bool:
         cache.set(key, "0", timeout=_CACHE_TTL)
         return False
 
-    has_lyr = _tags_carry_lyrics(meta)
+    try:
+        has_lyr = _tags_carry_lyrics(meta)
+    except Exception as exc:
+        # Defensive: tag-format quirks shouldn't escape from a probe call.
+        logger.warning("lyric tag inspection failed for %s: %s", audio_path, exc)
+        has_lyr = False
     cache.set(key, "1" if has_lyr else "0", timeout=_CACHE_TTL)
     return has_lyr
 
@@ -179,7 +184,10 @@ def _tags_carry_lyrics(meta) -> bool:
             return True
 
     # Vorbis comments (flac, ogg, opus), MP4 (m4a), ASF (wma), APE all expose
-    # a dict-ish API; case variants come from different writers.
+    # a dict-ish API; case variants come from different writers. Vorbis
+    # comments reject any key with non-ASCII bytes by raising ValueError
+    # (e.g. when we feed the MP4 ``\xa9lyr`` atom into a flac's tag store),
+    # so the except has to cover that too.
     for key in (
         "lyrics", "LYRICS", "Lyrics", "UNSYNCEDLYRICS",
         "\xa9lyr",                            # MP4 / iTunes lyrics atom
@@ -188,7 +196,7 @@ def _tags_carry_lyrics(meta) -> bool:
     ):
         try:
             value = tags.get(key)
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError, ValueError, KeyError):
             continue
         if value:
             return True
