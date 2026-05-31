@@ -187,9 +187,15 @@ class LocalSeason(Season):
         return self.max_episode
 
     def get_year(self) -> int:
-        if len(self.episodes) == 0:
+        # Use the *latest* episode's year, not the first. Shows where TMDB
+        # packs multiple Bangumi "seasons" into one TMDB season (e.g.
+        # 咒术回战 has 59 episodes spanning 2020-2026 in TMDB S01) need the
+        # span end-date, otherwise tv_show_similarity's year-gap gate
+        # rejects later Bangumi entries before the title check ever runs.
+        if not self.episodes:
             return -1
-        return self.get_episode(self.min_episode).get_year()
+        years = [e.get_year() for e in self.episodes.values() if e.get_year() > 0]
+        return max(years) if years else -1
 
     def list_episodes(self) -> Optional[List[LocalEpisode]]:
         return list(self.episodes.values())
