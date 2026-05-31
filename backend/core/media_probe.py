@@ -178,9 +178,14 @@ def _tags_carry_lyrics(meta) -> bool:
         if getall("USLT") or getall("SYLT"):
             return True
 
-    # Vorbis comments (flac, ogg, opus) and MP4 (m4a) expose a dict-ish API.
-    for key in ("lyrics", "LYRICS", "UNSYNCEDLYRICS", "\xa9lyr",
-                "----:com.apple.iTunes:LYRICS"):
+    # Vorbis comments (flac, ogg, opus), MP4 (m4a), ASF (wma), APE all expose
+    # a dict-ish API; case variants come from different writers.
+    for key in (
+        "lyrics", "LYRICS", "Lyrics", "UNSYNCEDLYRICS",
+        "\xa9lyr",                            # MP4 / iTunes lyrics atom
+        "----:com.apple.iTunes:LYRICS",        # MP4 freeform fallback
+        "WM/Lyrics",                           # ASF / WMA
+    ):
         try:
             value = tags.get(key)
         except (AttributeError, TypeError):

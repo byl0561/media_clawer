@@ -38,6 +38,7 @@ class IncompleteSeasonSerializer(serializers.Serializer):
     season_name = serializers.CharField()
     local_max_episode = serializers.IntegerField()
     remote_max_episode = serializers.IntegerField()
+    missing_count = serializers.IntegerField()
 
 
 class ShowDiffSerializer(serializers.Serializer):

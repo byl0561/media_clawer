@@ -177,6 +177,7 @@ def series_gaps(library: str) -> list:
                     "season_name": tmdb_season.name,
                     "local_max_episode": max(present_eps) if present_eps else 0,
                     "remote_max_episode": max(aired_missing),
+                    "missing_count": len(aired_missing),
                 }
             )
 

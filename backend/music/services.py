@@ -48,20 +48,19 @@ def refresh_all() -> None:
 def _album_has_full_lyrics(folder: str) -> bool:
     """An album counts as fully lyric'd iff every audio track carries lyrics.
 
-    Empty/no-audio folders are not flagged — there's nothing to check.
+    Walks subfolders too — multi-disc albums commonly land under
+    ``Album/CD1/...``, ``Album/CD2/...``, and the old listdir-only version
+    falsely reported them as "all lyric'd" because the top level had no
+    audio files of its own. Empty/no-audio folders are not flagged.
     """
-    try:
-        names = os.listdir(folder)
-    except OSError:
+    if not os.path.isdir(folder):
         return True
-    for name in names:
-        path = os.path.join(folder, name)
-        if not os.path.isfile(path):
-            continue
-        if os.path.splitext(name)[1].lower() not in AUDIO_EXTS:
-            continue
-        if not has_lyrics(path):
-            return False
+    for root, _dirs, files in os.walk(folder):
+        for name in files:
+            if os.path.splitext(name)[1].lower() not in AUDIO_EXTS:
+                continue
+            if not has_lyrics(os.path.join(root, name)):
+                return False
     return True
 
 

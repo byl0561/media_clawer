@@ -68,6 +68,9 @@ export interface IncompleteSeason {
     season_name: string;
     local_max_episode: number;
     remote_max_episode: number;
+    /** Real count of aired episodes the user is missing in this season —
+     * accurate for non-contiguous gaps (e.g. has 1,2,4,5 missing 3,6-10). */
+    missing_count: number;
 }
 
 /** `GET /api/v1/{tv-shows,anime}/series-gaps` row. */

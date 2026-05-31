@@ -106,7 +106,9 @@ function incompletePoster(
     const local = show.local_seasons.find((s) => s.num === inc.season_num);
     const tmdbId = show.show.tmdb_id;
     return {
-        title: `${inc.season_name} · 缺 ${inc.local_max_episode + 1}–${inc.remote_max_episode} 集`,
+        // `missing_count` is accurate even when the gap is non-contiguous
+        // (1,2,4,5 missing 3,6-10 → 6 missing, not 5 from the local-max range).
+        title: `${inc.season_name} · 缺 ${inc.missing_count} 集`,
         poster: local?.poster ?? null,
         link: seasonLink(tmdbId, inc.season_num),
         score: local?.score ?? null,
