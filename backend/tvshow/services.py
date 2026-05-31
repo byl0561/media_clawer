@@ -443,13 +443,9 @@ def subtitle_gaps(library: str) -> list:
             )
 
         # Season folders that exist on disk but contain no video at all.
-        # Suppressed when:
-        #  - the season is shadow-ignored at the series level (user already
-        #    said "I'm OK without these episodes"), or
-        #  - the user has set any subtitle_checked_episode for this season.
+        # Subtitle gap is independent of the series-side checked_episode —
+        # only ``subtitle_checked_episode`` silences here.
         for num in local_tv_show.empty_seasons:
-            if num in local_tv_show.shadow_seasons:
-                continue
             if cutoffs.get(num, 0) > 0:
                 continue
             tmdb_season = tmdb_seasons_by_num.get(num)
@@ -533,9 +529,9 @@ def subtitle_ignore_options(library: str, tmdb_id: int) -> dict:
     # Empty season folders surface in subtitle_gaps too; offer a synthetic
     # "整季" choice keyed at TMDB's episode_count so the user can dismiss
     # them from the dialog without having any real local episodes to pick.
+    # Independent of series-side checked_episode — only subtitle_checked_
+    # episode silences entries here.
     for num in sorted(local_tv_show.empty_seasons):
-        if num in local_tv_show.shadow_seasons:
-            continue
         if cutoffs.get(num, 0) > 0:
             continue
         tmdb_season = tmdb_seasons_by_num.get(num)
