@@ -241,8 +241,16 @@ class LocalTvShow(TvShow):
         return [self.title, self.original_title, *self.alias]
 
     def get_years(self) -> List[int]:
+        # Fall back to the show's NFO year when the last season has no valid
+        # episode dates (LocalSeason.get_year returns -1 in that case), so a
+        # missing-date case can't poison gap_year into rejecting every match.
+        last_year = self.year
         last_season = self.get_season(self.max_season)
-        return [self.year, last_season.get_year() if last_season else self.year]
+        if last_season is not None:
+            season_year = last_season.get_year()
+            if season_year > 0:
+                last_year = max(last_year, season_year)
+        return [self.year, last_year]
 
     def get_rate(self) -> Rate:
         return self.tmdb_rate
