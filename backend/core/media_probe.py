@@ -28,15 +28,28 @@ from django.core.cache import cache
 logger = logging.getLogger(__name__)
 
 # Subtitle file extensions placed next to the video. Covers SubRip,
-# (Advanced) SubStation Alpha, WebVTT, VobSub, MicroDVD, PGS.
-_SUBTITLE_EXTS = {".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx", ".sup", ".smi"}
+# (Advanced) SubStation Alpha, WebVTT, VobSub, MicroDVD, PGS, MKV subs,
+# TTML/DFXP, YouTube SBV. ``.txt`` is intentionally omitted — too many
+# unrelated text files share that extension and would false-positive.
+_SUBTITLE_EXTS = {
+    ".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx", ".sup", ".smi",
+    ".mks", ".dfxp", ".ttml", ".sbv",
+}
 
-VIDEO_EXTS = {".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".flv", ".ts", ".webm"}
+# Container formats. ``.iso`` is allowed because ffprobe can enumerate
+# subtitle streams inside DVD/BluRay images; ``.rmvb`` / ``.rm`` cover older
+# Chinese-language libraries; ``.m2ts`` / ``.mts`` cover BluRay/AVCHD.
+VIDEO_EXTS = {
+    ".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".flv", ".ts", ".webm",
+    ".m2ts", ".mts", ".iso", ".mpg", ".mpeg", ".rmvb", ".rm", ".vob",
+    ".3gp", ".f4v",
+}
 
 AUDIO_EXTS = {
     ".mp3", ".flac", ".m4a", ".m4b", ".ogg", ".oga", ".opus",
     ".wav", ".ape", ".wma", ".aac", ".aiff", ".alac",
     ".dsf", ".dff",
+    ".wv", ".tta", ".tak",
 }
 
 # 1 year — file mtime/size in the key invalidate naturally on edit.
