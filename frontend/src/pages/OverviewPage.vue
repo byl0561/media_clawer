@@ -10,6 +10,8 @@ const stats = computed(() => [
   {label: "缺失最新", value: totals.value.latest, primary: false},
   {label: "缺失续集", value: totals.value.sequel, primary: false},
   {label: "已过时", value: totals.value.outdated, primary: false},
+  {label: "缺失字幕", value: totals.value.subtitle, primary: false},
+  {label: "缺失歌词", value: totals.value.lyric, primary: false},
 ])
 </script>
 
@@ -21,7 +23,7 @@ const stats = computed(() => [
       <h1 class="text-2xl font-bold text-content">库维护概览</h1>
       <p class="mt-1 text-sm text-muted">榜单与本地库的差异一览，点击卡片查看明细</p>
 
-      <div class="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+      <div class="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
         <div v-for="s in stats" :key="s.label">
           <div v-if="anyLoading" class="skeleton rounded" :class="s.primary ? 'h-10 w-20' : 'h-8 w-14'"></div>
           <div

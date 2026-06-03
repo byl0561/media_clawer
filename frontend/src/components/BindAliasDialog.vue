@@ -17,8 +17,8 @@ import {
 // non-chinese <title> (TMDB没收录中文翻译时常见) text-similarity match in
 // the backend fails, even though the user owns the item. This dialog lets
 // the user say "this rank item is actually that local item", appending the
-// rank title to the local alias.txt so the next diff matches without code
-// changes.
+// rank title to the local item's .mediaclawer.json aliases so the next diff
+// matches without code changes.
 //
 // Two backend flavours share one UI: movies/tv/anime bind by tmdb_id (public
 // unique key); albums/books bind by a signed path token (no public id).
@@ -225,9 +225,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
         <footer class="space-y-3 border-t border-border p-5">
           <p v-if="submitFailed" class="text-sm text-danger">
             绑定失败，已保留你的选择，请重试。
-          </p>
-          <p class="text-xs text-muted">
-            绑定后会在该本地条目目录的 alias.txt 追加一行，已存在则跳过。
           </p>
           <div class="flex justify-end gap-2">
             <button

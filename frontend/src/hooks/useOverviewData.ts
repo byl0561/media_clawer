@@ -22,11 +22,13 @@ export interface CardState {
 }
 
 export interface OverviewTotals {
-    /** 最新 + 续集 + 过时 across every library. */
+    /** Sum of every category below — what the hero "待维护合计" cell shows. */
     all: number;
     latest: number;
     sequel: number;
     outdated: number;
+    subtitle: number;
+    lyric: number;
 }
 
 export function useOverviewData(): {
@@ -106,10 +108,21 @@ export function useOverviewData(): {
     }
 
     const totals = computed<OverviewTotals>(() => {
+        // Tab names in the cards match what useMovie/useTV/useAnime/useAlbum
+        // pass as `overviewLabel ?? name` — see CardCount construction above.
         const latest = sumWhere((c) => c.name === "最新");
         const sequel = sumWhere((c) => c.name === "续集");
         const outdated = sumWhere((c) => c.name === "过时");
-        return {latest, sequel, outdated, all: latest + sequel + outdated};
+        const subtitle = sumWhere((c) => c.name === "缺失字幕");
+        const lyric = sumWhere((c) => c.name === "缺失歌词");
+        return {
+            latest,
+            sequel,
+            outdated,
+            subtitle,
+            lyric,
+            all: latest + sequel + outdated + subtitle + lyric,
+        };
     });
 
     // Empty == not yet loaded (before onMounted), so the hero shows its
