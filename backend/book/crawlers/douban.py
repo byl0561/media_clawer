@@ -10,6 +10,7 @@ import bs4
 
 from core import conf
 from core.http import http_get_with_cache
+from core.matching import title_excluded
 from book.models import DoubanBook, Rate
 
 
@@ -21,7 +22,8 @@ def extract_year(pl_parts: List[str]) -> Optional[int]:
     return None
 
 
-def crawl_douban_250(cache: bool = True) -> list:
+def crawl_douban_250(cache: bool = True, exclude_titles=None) -> list:
+    excludes = exclude_titles or []
     books = []
 
     for x in range(10):
@@ -78,17 +80,8 @@ def crawl_douban_250(cache: bool = True) -> list:
             book = DoubanBook(
                 title, alias, author, year, poster, link, Rate(score, votes, "豆瓣图书")
             )
-            if not check(book):
+            if title_excluded(book.get_titles(), excludes):
                 continue
             books.append(book)
 
     return books
-
-
-def check(book: DoubanBook) -> bool:
-    young_books = ["中国少年儿童百科全书", "十万个为什么"]
-    for title in book.get_titles():
-        for young_book in young_books:
-            if title in young_book or young_book in title:
-                return False
-    return True

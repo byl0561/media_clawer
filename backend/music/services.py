@@ -7,7 +7,13 @@ import os
 from typing import List
 
 from core import conf
-from core.local_config import add_aliases, read_config, set_skip_lyric_check
+from core.local_config import (
+    add_aliases,
+    read_config,
+    read_root_excludes,
+    set_skip_lyric_check,
+)
+from core.matching import drop_excluded
 from core.exceptions import ShowNotFound, UpstreamUnavailable
 from core.identifiers import decode_local_path, encode_local_path
 from core.media_probe import AUDIO_EXTS, has_lyrics
@@ -26,6 +32,8 @@ def diff() -> dict:
     douban_albums = crawl_douban_250()
     if not douban_albums:
         raise UpstreamUnavailable()
+    # Library-wide ignore list (<MUSIC_ROOT>/.mediaclawer.json -> exclude_titles).
+    douban_albums = drop_excluded(douban_albums, read_root_excludes(conf.MUSIC_ROOT))
     local_albums = crawl_local(conf.MUSIC_ROOT)
     return {
         "missing": _serialize(get_missing_albums(douban_albums, local_albums)),

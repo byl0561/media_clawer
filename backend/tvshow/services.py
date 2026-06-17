@@ -19,9 +19,11 @@ from core.exceptions import ShowNotFound, UpstreamUnavailable
 from core.local_config import (
     add_aliases,
     read_config,
+    read_root_excludes,
     set_season_checked,
     set_season_subtitle_checked,
 )
+from core.matching import drop_excluded
 from core.media_probe import has_subtitle
 from tvshow.crawlers.bangumi import crawl_bangumi_tv_show_80
 from tvshow.crawlers.douban import crawl_dou_list
@@ -35,6 +37,16 @@ _DOULIST_ALL = "https://www.douban.com/doulist/116238969/"
 _DOULIST_RECENT = "https://www.douban.com/doulist/113919174/"
 
 _LIBRARY_ROOT = {"tv": conf.TV_ROOT, "anime": conf.ANIME_ROOT}
+
+# Long-running anime that perpetually add episodes — excluded from the Bangumi
+# chart so they don't sit on the "missing" list forever. These are the
+# historical built-in defaults; users add more (redeploy-free) via
+# ``<ANIME_ROOT>/.mediaclawer.json`` -> ``exclude_titles``.
+_ANIME_DEFAULT_EXCLUDES = ["死神", "银魂", "航海王", "瑞克和莫蒂"]
+
+
+def _anime_excludes() -> List[str]:
+    return _ANIME_DEFAULT_EXCLUDES + read_root_excludes(conf.ANIME_ROOT)
 
 
 def _is_retained_tv_show(tv_show: TvShow) -> bool:
@@ -101,13 +113,17 @@ def tv_diff() -> dict:
     )
     if not douban_tv_shows:
         raise UpstreamUnavailable()
+    # Library-wide ignore list (<TV_ROOT>/.mediaclawer.json -> exclude_titles).
+    douban_tv_shows = drop_excluded(douban_tv_shows, read_root_excludes(conf.TV_ROOT))
     local_shows = crawl_local(conf.TV_ROOT)
     _enrich_local_shows(local_shows)
     return _diff(douban_tv_shows, local_shows, _is_retained_tv_show)
 
 
 def anime_diff() -> dict:
-    bangumi_shows = crawl_bangumi_tv_show_80()
+    # Excludes are threaded into the crawl (not applied after) so ignored long
+    # shows don't eat slots in the "collect 80" loop — preserving the chart depth.
+    bangumi_shows = crawl_bangumi_tv_show_80(exclude_titles=_anime_excludes())
     if not bangumi_shows:
         raise UpstreamUnavailable()
     local_shows = crawl_local(conf.ANIME_ROOT)
@@ -213,7 +229,7 @@ def refresh_all() -> None:
     """Repopulate the upstream Douban / Bangumi / TMDB caches (used by cron)."""
     crawl_dou_list(_DOULIST_ALL, cache=False)
     crawl_dou_list(_DOULIST_RECENT, cache=False)
-    crawl_bangumi_tv_show_80(cache=False)
+    crawl_bangumi_tv_show_80(cache=False, exclude_titles=_anime_excludes())
     _flush_tmdb(conf.TV_ROOT)
     _flush_tmdb(conf.ANIME_ROOT)
 

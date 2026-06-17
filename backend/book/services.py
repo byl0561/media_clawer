@@ -9,7 +9,7 @@ import os
 from typing import List
 
 from core import conf
-from core.local_config import add_aliases
+from core.local_config import add_aliases, read_root_excludes
 from core.exceptions import ShowNotFound, UpstreamUnavailable
 from core.identifiers import decode_local_path, encode_local_path
 from book.crawlers.douban import crawl_douban_250
@@ -17,6 +17,16 @@ from book.crawlers.local import crawl_local
 from book.matching import get_missing_books
 from book.models import Book
 from book.serializers import BookSerializer
+
+
+# Reference/children's books to keep off the chart. Historical built-in
+# defaults; users add more (redeploy-free) via ``<BOOK_ROOT>/.mediaclawer.json``
+# -> ``exclude_titles``.
+_BOOK_DEFAULT_EXCLUDES = ["中国少年儿童百科全书", "十万个为什么"]
+
+
+def _book_excludes() -> List[str]:
+    return _BOOK_DEFAULT_EXCLUDES + read_root_excludes(conf.BOOK_ROOT)
 
 
 def _is_retained_book(book: Book) -> bool:
@@ -29,7 +39,7 @@ def _serialize(books) -> list:
 
 def diff() -> dict:
     """Douban Top 250 vs. local library -> {"missing": [...], "extra": [...]}."""
-    douban_books = crawl_douban_250()
+    douban_books = crawl_douban_250(exclude_titles=_book_excludes())
     if not douban_books:
         raise UpstreamUnavailable()
     local_books = crawl_local(conf.BOOK_ROOT)
@@ -43,7 +53,7 @@ def diff() -> dict:
 
 def refresh_all() -> None:
     """Repopulate the upstream Douban cache (used by cron)."""
-    crawl_douban_250(cache=False)
+    crawl_douban_250(cache=False, exclude_titles=_book_excludes())
 
 
 # --- Alias bind (manual chinese-title supplement) -----------------------

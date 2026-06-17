@@ -82,8 +82,15 @@ RESTful、带版本前缀。下表为浏览器侧路径（经 Nginx）：
   - 电影 NFO 文件名兼容两种约定：tmm 的 `movie.nfo` 与 MoviePilot 的 `{title} ({year}).nfo`；同目录两者并存时以 MoviePilot 的为准。
   - 电视剧/动漫沿用 Kodi 标准：`tvshow.nfo` + `Season N/` + 集 NFO（任意名，需含 `<season>` / `<episode>` / `<title>` / `<aired>` 或 `<premiered>` / `<runtime>` 字段）。第 0 季文件夹兼容 `Specials/`（tmm 默认）与 `Season 0/`（MoviePilot 默认）。
   - **中文别名补充**：TMDB 未收录中文翻译的片（典型如日剧/韩剧/小众片）`<title>` 会是原始语言，与榜单中文标题文本匹配失败。在该片所在目录放一个 `alias.txt`，每行写一个中文别名，扫库时会作为额外标题加入匹配，电影/电视剧/动漫均支持。例：`/media/tv/30歳まで.../alias.txt` 写 `30岁的童贞魔法师`。
+    - Bangumi 动画榜单里被截断的标题（如 `物语`、`86`）会导致你已拥有的番被误报为缺失——把截断标题作为别名绑到对应番剧目录即可命中，无需改代码。
 - **音乐专辑**：目录命名 `{专辑名} - {音乐家} {年份}`，如 `不能说的秘密 - 周杰伦 2007`。
 - **图书**：用 [calibre-web](https://github.com/janeczku/calibre-web) 管理。
+- **库级忽略榜单条目**：在任一媒体库**根目录**放一个 `.mediaclawer.json`，写 `exclude_titles`，命中的榜单条目不再出现在该库的「缺失」列表。标题按双向子串匹配（写短主标题 `银魂` 即可命中 `银魂：完结篇`）。电影/电视剧/动漫/专辑/图书均支持，改完即时生效、无需重新部署。内置默认仍排除长篇动画（`死神/银魂/航海王/瑞克和莫蒂`）与工具书（`中国少年儿童百科全书/十万个为什么`），此文件中的条目在默认之上追加。例：
+
+  ```json
+  // /Volumes/Anime/.mediaclawer.json
+  { "exclude_titles": ["名侦探柯南", "蜡笔小新"] }
+  ```
 
 ## Docker 部署
 

@@ -6,6 +6,7 @@ import bs4
 
 from core import conf
 from core.http import http_get_with_cache
+from core.matching import title_excluded
 from tvshow.models import BangumiTvShow, Rate
 
 
@@ -13,8 +14,12 @@ _MAX_PAGES = 30
 _MAX_CONSECUTIVE_FAILURES = 5
 
 
-def crawl_bangumi_tv_show_80(cache: bool = True) -> list:
+def crawl_bangumi_tv_show_80(cache: bool = True, exclude_titles=None) -> list:
     """Scrape the Bangumi anime rank pages until we collect 80 entries.
+
+    ``exclude_titles`` is the caller-supplied ignore list (built-in long-show
+    defaults + ``<ANIME_ROOT>/.mediaclawer.json``); matching anime are skipped
+    *during* collection so they don't eat slots in the 80-entry budget.
 
     Stops on three conditions to avoid the runaway-loop case that used to
     drive page numbers into the hundreds when Bangumi's TLS flapped:
@@ -26,6 +31,7 @@ def crawl_bangumi_tv_show_80(cache: bool = True) -> list:
        Bangumi is down, retrying every page just floods their server
        and our logs.
     """
+    excludes = exclude_titles or []
     tv_shows = []
     tv_show_names = set()
 
@@ -99,7 +105,7 @@ def crawl_bangumi_tv_show_80(cache: bool = True) -> list:
 
             titles = anime.get_titles()
             duplicated = any(t in tv_show_names for t in titles)
-            if duplicated or not check(anime):
+            if duplicated or not check(anime, excludes):
                 continue
 
             tv_shows.append(anime)
@@ -112,7 +118,7 @@ def check_max_size(tv_shows: list) -> bool:
     return len(tv_shows) > 80
 
 
-def check(anime: BangumiTvShow) -> bool:
+def check(anime: BangumiTvShow, exclude_titles=None) -> bool:
     if anime.get_years()[0] < 2009:
         return False
 
@@ -123,45 +129,26 @@ def check(anime: BangumiTvShow) -> bool:
     if anime.get_rate().votes < 2000:
         return False
 
-    long_shows = ["死神", "银魂", "航海王", "瑞克和莫蒂"]
-    for title in anime.get_titles():
-        if get_main_title(title) in long_shows:
-            return False
+    if title_excluded(anime.get_titles(), exclude_titles or []):
+        return False
 
     return True
 
 
-def get_main_title(title: str) -> str:
-    if not title:
-        return ""
-    index = title.find("：")
-    if index == -1:
-        return title
-    return title[:index]
-
-
 def trim_title(title):
+    """Generic normalisation of a scraped Bangumi rank title.
+
+    Only library-agnostic cleanup lives here now: strip stray ``'`` / ``°`` and
+    a trailing season number (``进击的巨人3`` -> ``进击的巨人``) so the fuzzy
+    matcher sees a stable stem.
+
+    Per-title canonicalisation (the old hand-maintained ``物语`` -> ``物语系列``
+    style map) is intentionally gone — bind the truncated rank title as an
+    ``aliases`` entry on the owned show's ``.mediaclawer.json`` (UI: the bind
+    dialog) instead, which does the same job without a redeploy.
+    """
     if title is None:
         return None
-
-    replace_titles = {
-        "物语": "物语系列",
-        "BanG": "BanG Dream! It's MyGO!!!!!",
-        "辉夜大小姐想让我告白": "辉夜大小姐想让我告白",
-        "爆漫王": "爆漫王",
-        "GIRLS": "GIRLS BAND CRY",
-        "86": "86-不存在的战区-",
-        "NOMAD": "MEGALO BOX",
-        "MEGALO": "MEGALO BOX",
-        "为美好的世界献上祝福！": "为美好的世界献上祝福！",
-        "寄生兽": "寄生兽：生命的准则",
-        "钢之炼金术师": "钢之炼金术师 FULLMETAL ALCHEMIST",
-        "少女☆歌剧": "少女☆歌剧 Revue Starlight",
-        "TIGER": "TIGER & BUNNY",
-    }
-    for key, value in replace_titles.items():
-        if key in title:
-            return value
 
     for remove_str in ["'", "°"]:
         title = title.replace(remove_str, "")

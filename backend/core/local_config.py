@@ -10,6 +10,15 @@ show folder, album folder, book parent folder) stores user-editable extras:
   - ``seasons`` (tv/anime only): per-season ``checked_episode`` cutoffs that
     suppress that season's outstanding-episode gaps
 
+The SAME filename, placed at a *library root* (e.g. ``/Volumes/Anime/``)
+instead of inside an item folder, carries library-wide curation:
+
+  - ``exclude_titles`` (all libraries): ranking-chart titles to ignore so they
+    never show up in that library's "missing" diff. Substring-matched in either
+    direction (see :func:`core.matching.title_excluded`). This is the
+    hand-editable, redeploy-free home for what used to be hard-coded lists like
+    the long-running-anime / children's-book exclusions.
+
 The JSON is UTF-8, indented, sorted-keyed, so users can hand-edit it.
 """
 import json
@@ -19,6 +28,7 @@ from typing import Dict, Iterable, List
 __all__ = [
     "CONFIG_FILE",
     "read_config",
+    "read_root_excludes",
     "add_aliases",
     "add_skip_collection",
     "set_season_checked",
@@ -59,6 +69,19 @@ def _write_json(folder: str, data: dict) -> None:
 def read_config(folder: str) -> dict:
     """Return the per-folder config dict, or ``{}`` when the file is absent."""
     return _read_json(folder)
+
+
+def read_root_excludes(root: str) -> List[str]:
+    """Library-wide ``exclude_titles`` from ``<root>/.mediaclawer.json``.
+
+    Returns a clean list of non-empty, stripped strings (``[]`` when the file
+    or key is absent, or malformed). Garbage entries are skipped rather than
+    raising so a hand-edited file can't break the diff.
+    """
+    raw = read_config(root).get("exclude_titles")
+    if not isinstance(raw, list):
+        return []
+    return [t.strip() for t in raw if isinstance(t, str) and t.strip()]
 
 
 def add_aliases(folder: str, aliases: Iterable[str]) -> int:

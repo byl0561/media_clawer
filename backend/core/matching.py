@@ -18,6 +18,8 @@ __all__ = [
     "strip_parentheses",
     "title_ratio",
     "best_title_ratio",
+    "title_excluded",
+    "drop_excluded",
 ]
 
 _PAREN_PATTERNS = (
@@ -41,6 +43,38 @@ def strip_parentheses(text: str, *, ascii_only: bool = False) -> str:
     if not ascii_only:
         text = _PAREN_PATTERNS[1].sub("", text)
     return text
+
+
+def title_excluded(titles: Sequence[str], excludes: Sequence[str]) -> bool:
+    """True iff any of ``titles`` should be ignored per the ``excludes`` list.
+
+    Matching is substring-in-either-direction (case kept) so a user can write
+    either the short main title (``银魂`` excludes ``银魂：完结篇``) or the full
+    one (``中国少年儿童百科全书`` excludes a folder named ``中国少年儿童百科全书``).
+    This is the same lenient rule the book crawler used before exclusions
+    became configurable.
+    """
+    if not excludes:
+        return False
+    for raw in titles:
+        title = (raw or "").strip()
+        if not title:
+            continue
+        for ex in excludes:
+            if ex and (ex in title or title in ex):
+                return True
+    return False
+
+
+def drop_excluded(items: Sequence[T], excludes: Sequence[str]) -> List[T]:
+    """Filter out every item whose ``get_titles()`` matches ``excludes``.
+
+    A no-op (returns a plain list copy) when ``excludes`` is empty, so callers
+    can pass it unconditionally.
+    """
+    if not excludes:
+        return list(items)
+    return [it for it in items if not title_excluded(it.get_titles(), excludes)]
 
 
 def title_ratio(a: str, b: str) -> float:

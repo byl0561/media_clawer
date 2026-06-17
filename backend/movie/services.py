@@ -16,8 +16,10 @@ from core.local_config import (
     add_aliases,
     add_skip_collection,
     read_config,
+    read_root_excludes,
     set_skip_subtitle_check,
 )
+from core.matching import drop_excluded
 from core.media_probe import VIDEO_EXTS, has_subtitle
 from movie.crawlers.douban import crawl_douban_250
 from movie.crawlers.local import crawl_local, file_filter
@@ -85,6 +87,9 @@ def diff() -> dict:
     douban_movies = crawl_douban_250()
     if not douban_movies:
         raise UpstreamUnavailable()
+    # Library-wide ignore list (<MOVIE_ROOT>/.mediaclawer.json -> exclude_titles):
+    # drop ignored chart titles so they never surface as missing/extra.
+    douban_movies = drop_excluded(douban_movies, read_root_excludes(conf.MOVIE_ROOT))
     local_movies = _local_movies()
 
     missing_movies = get_missing_movies(douban_movies, local_movies)
