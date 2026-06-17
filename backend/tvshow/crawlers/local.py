@@ -63,9 +63,8 @@ def process_file(path: str):
             poster = "/v1/anime/poster/" + poster.replace(conf.ANIME_ROOT, "")
 
     # Per-folder user config (aliases for fuzzy match + per-season
-    # ``checked_episode`` cutoffs that suppress outstanding-episode gaps).
-    # On first read, legacy ``alias.txt`` and ``Season N/checked_episode.txt``
-    # files in this folder are migrated into the JSON and deleted.
+    # ``checked_episode`` cutoffs that suppress outstanding-episode gaps),
+    # stored in this folder's ``.mediaclawer.json``.
     config = read_config(root)
     alias = list(config.get("aliases") or [])
 

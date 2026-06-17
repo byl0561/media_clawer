@@ -81,7 +81,7 @@ RESTful、带版本前缀。下表为浏览器侧路径（经 Nginx）：
 - **电影 / 电视剧 / 动漫**：用 [tinyMediaManager](https://www.tinymediamanager.org/) 或 [MoviePilot](https://github.com/jxxghp/MoviePilot) 刮削，刮削源选 [TMDB](https://www.themoviedb.org/)，刮削后整理文件（生成 `.nfo`、`poster.*`）。
   - 电影 NFO 文件名兼容两种约定：tmm 的 `movie.nfo` 与 MoviePilot 的 `{title} ({year}).nfo`；同目录两者并存时以 MoviePilot 的为准。
   - 电视剧/动漫沿用 Kodi 标准：`tvshow.nfo` + `Season N/` + 集 NFO（任意名，需含 `<season>` / `<episode>` / `<title>` / `<aired>` 或 `<premiered>` / `<runtime>` 字段）。第 0 季文件夹兼容 `Specials/`（tmm 默认）与 `Season 0/`（MoviePilot 默认）。
-  - **中文别名补充**：TMDB 未收录中文翻译的片（典型如日剧/韩剧/小众片）`<title>` 会是原始语言，与榜单中文标题文本匹配失败。在该片所在目录放一个 `alias.txt`，每行写一个中文别名，扫库时会作为额外标题加入匹配，电影/电视剧/动漫均支持。例：`/media/tv/30歳まで.../alias.txt` 写 `30岁的童贞魔法师`。
+  - **中文别名补充**：TMDB 未收录中文翻译的片（典型如日剧/韩剧/小众片）`<title>` 会是原始语言，与榜单中文标题文本匹配失败。在网页上对该条目点「绑定别名」即可写入，扫库时作为额外标题加入匹配，电影/电视剧/动漫均支持。别名存放在该条目所在目录的 `.mediaclawer.json`（`aliases` 字段），也可直接手编。例：`/media/tv/30歳まで.../.mediaclawer.json` 写 `{"aliases": ["30岁的童贞魔法师"]}`。
     - Bangumi 动画榜单里被截断的标题（如 `物语`、`86`）会导致你已拥有的番被误报为缺失——把截断标题作为别名绑到对应番剧目录即可命中，无需改代码。
 - **音乐专辑**：目录命名 `{专辑名} - {音乐家} {年份}`，如 `不能说的秘密 - 周杰伦 2007`。
 - **图书**：用 [calibre-web](https://github.com/janeczku/calibre-web) 管理。

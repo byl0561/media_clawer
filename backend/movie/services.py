@@ -198,8 +198,8 @@ def refresh_all() -> None:
 
 # --- Alias bind (manual chinese-title supplement) -----------------------
 # See tvshow.services for the design rationale. Movies use the same flow:
-# locate the on-disk folder by TMDB id, append rank titles to alias.txt so
-# the next list/local diff text-matches them.
+# locate the on-disk folder by TMDB id, append rank titles to the folder's
+# ``.mediaclawer.json`` ``aliases`` so the next list/local diff text-matches them.
 
 
 def _find_movie_dir(tmdb_id: int) -> Optional[str]:
