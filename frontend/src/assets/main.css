@@ -48,6 +48,18 @@
     text-decoration: none;
   }
 
+  /* Themed text-selection highlight (default is the browser's blue). */
+  ::selection {
+    background: theme('colors.accent.soft');
+    color: theme('colors.content');
+  }
+
+  /* On-theme caret in text fields instead of the OS default. */
+  input,
+  textarea {
+    caret-color: theme('colors.accent.DEFAULT');
+  }
+
   /* Slim, on-theme scrollbars */
   * {
     scrollbar-width: thin;

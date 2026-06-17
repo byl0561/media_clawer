@@ -146,20 +146,35 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown))
                   已有至 {{ s.local_max_episode }} · 缺 {{ s.episodes.length }} 集
                 </span>
               </div>
-              <select
-                v-model="picked[s.season_num]"
-                class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                <option value="">不忽略（默认）</option>
-                <option
-                  v-for="ep in s.episodes"
-                  :key="ep.num"
-                  :value="ep.num"
+              <div class="relative">
+                <select
+                  v-model="picked[s.season_num]"
+                  class="w-full cursor-pointer appearance-none rounded-lg border border-border bg-surface px-3 py-2 pr-9 text-sm text-content transition hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  忽略到 第 {{ ep.num }} 集 · {{ ep.name }}
-                  {{ ep.num === s.latest_episode ? "（最新 · 整季）" : "" }}
-                </option>
-              </select>
+                  <option value="" class="bg-surface text-content">不忽略（默认）</option>
+                  <option
+                    v-for="ep in s.episodes"
+                    :key="ep.num"
+                    :value="ep.num"
+                    class="bg-surface text-content"
+                  >
+                    忽略到 第 {{ ep.num }} 集 · {{ ep.name }}
+                    {{ ep.num === s.latest_episode ? "（最新 · 整季）" : "" }}
+                  </option>
+                </select>
+                <svg
+                  class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6 8l4 4 4-4" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
