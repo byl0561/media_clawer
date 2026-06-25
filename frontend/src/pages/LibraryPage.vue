@@ -16,12 +16,14 @@ interface ItemsState {
   kind: "items";
   status: "loading" | "ok" | "error";
   step: string;
+  pct: number;
   data: MediaItemGroupData | null;
 }
 interface SeriesState {
   kind: "series";
   status: "loading" | "ok" | "error";
   step: string;
+  pct: number;
   data: SeriesGroupData | null;
 }
 type TabState = ItemsState | SeriesState
@@ -73,29 +75,29 @@ async function loadTab(i: number): Promise<void> {
   if (!group) return
   const tab = group.mediaItemFunctionGroups[i]
   const kind = tabKind(tab)
-  const onProgress = (step: string) => {
+  const onProgress = (step: string, pct: number) => {
     const s = states.value[i]
-    if (s?.status === "loading") s.step = step
+    if (s?.status === "loading") { s.step = step; s.pct = pct }
   }
   if (kind === "series") {
-    states.value[i] = {kind: "series", status: "loading", step: "", data: null}
+    states.value[i] = {kind: "series", status: "loading", step: "", pct: 0, data: null}
     try {
       const data = await tab.acquireSeries!(onProgress)
       states.value[i] = data.valid
-        ? {kind: "series", status: "ok", step: "", data}
-        : {kind: "series", status: "error", step: "", data: null}
+        ? {kind: "series", status: "ok", step: "", pct: 0, data}
+        : {kind: "series", status: "error", step: "", pct: 0, data: null}
     } catch {
-      states.value[i] = {kind: "series", status: "error", step: "", data: null}
+      states.value[i] = {kind: "series", status: "error", step: "", pct: 0, data: null}
     }
   } else {
-    states.value[i] = {kind: "items", status: "loading", step: "", data: null}
+    states.value[i] = {kind: "items", status: "loading", step: "", pct: 0, data: null}
     try {
       const data = await tab.acquireData!(onProgress)
       states.value[i] = data.valid
-        ? {kind: "items", status: "ok", step: "", data}
-        : {kind: "items", status: "error", step: "", data: null}
+        ? {kind: "items", status: "ok", step: "", pct: 0, data}
+        : {kind: "items", status: "error", step: "", pct: 0, data: null}
     } catch {
-      states.value[i] = {kind: "items", status: "error", step: "", data: null}
+      states.value[i] = {kind: "items", status: "error", step: "", pct: 0, data: null}
     }
   }
 }
@@ -109,8 +111,8 @@ async function loadAll(): Promise<void> {
   const tabCount = group.mediaItemFunctionGroups.length
   states.value = Array.from({length: tabCount}, (_, i) =>
     tabKind(group.mediaItemFunctionGroups[i]) === "series"
-      ? {kind: "series", status: "loading", step: "", data: null} as TabState
-      : {kind: "items", status: "loading", step: "", data: null} as TabState,
+      ? {kind: "series", status: "loading", step: "", pct: 0, data: null} as TabState
+      : {kind: "items", status: "loading", step: "", pct: 0, data: null} as TabState,
   )
   await Promise.all(group.mediaItemFunctionGroups.map((_, i) => loadTab(i)))
   const firstWithItems = states.value.findIndex(
@@ -188,7 +190,13 @@ watch(catalog.version, () => catalog.track(loadAll()))
       <p class="sr-only" role="status" aria-live="polite">{{ statusText }}</p>
 
       <template v-if="!activeState || activeState.status === 'loading'">
-        <p class="mb-4 text-sm text-muted">{{ statusText }}</p>
+        <p class="mb-1 text-sm text-muted">{{ statusText }}</p>
+        <div class="mb-4 h-1 w-full overflow-hidden rounded-full bg-surface-2">
+          <div
+            class="h-full rounded-full bg-accent transition-[width] duration-300"
+            :style="{width: (activeState?.pct ?? 0) + '%'}"
+          ></div>
+        </div>
         <SkeletonGrid />
       </template>
       <ErrorState

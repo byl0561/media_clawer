@@ -37,8 +37,10 @@ def _serialize(albums) -> list:
     return [_album_to_dict(a) for a in albums]
 
 
-async def diff() -> dict:
+async def diff(sink=None) -> dict:
     """Douban Top 250 vs. local library -> {"missing": [...], "extra": [...]}."""
+    if sink:
+        await sink.report("正在爬取豆瓣音乐榜单…", 5)
     loop = asyncio.get_running_loop()
     douban_albums, local_albums = await asyncio.gather(
         crawl_douban_250(),
@@ -77,28 +79,37 @@ async def warm_lyric_cache() -> None:
     await lyric_gaps()
 
 
-async def lyric_gaps() -> list:
+async def lyric_gaps(sink=None) -> list:
     """Local albums missing embedded lyrics on any track."""
     loop = asyncio.get_running_loop()
     albums = await loop.run_in_executor(None, crawl_local, conf.MUSIC_ROOT)
+    total = len(albums)
+    done = 0
+
+    if sink and total > 0:
+        await sink.report(f"正在检测歌词 0/{total}", 5)
 
     async def check_album(album):
-        if not album.path:
-            return None
-        cfg = read_config(album.path)
-        if cfg.get("skip_lyric_check"):
-            return None
-        # mutagen reads only file headers (small I/O); run in thread pool
-        has_lyr = await loop.run_in_executor(None, _album_has_full_lyrics, album.path)
-        if has_lyr:
-            return None
-        return {
-            "token": encode_local_path(album.path),
-            "title": album.title,
-            "artist": album.artist,
-            "year": album.year,
-            "poster": album.poster,
-        }
+        nonlocal done
+        result = None
+        if album.path:
+            cfg = read_config(album.path)
+            if not cfg.get("skip_lyric_check"):
+                # mutagen reads only file headers (small I/O); run in thread pool
+                has_lyr = await loop.run_in_executor(None, _album_has_full_lyrics, album.path)
+                if not has_lyr:
+                    result = {
+                        "token": encode_local_path(album.path),
+                        "title": album.title,
+                        "artist": album.artist,
+                        "year": album.year,
+                        "poster": album.poster,
+                    }
+        done += 1
+        if sink is not None and total > 0:
+            pct = 8 + done * 87 // total
+            await sink.report(f"正在检测歌词 {done}/{total}", pct)
+        return result
 
     results = await asyncio.gather(*[check_album(a) for a in albums])
     result = sorted(

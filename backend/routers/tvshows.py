@@ -22,12 +22,12 @@ async def tv_diff() -> StreamingResponse:
 
 @router.get("/tv-shows/series-gaps")
 async def tv_series_gaps() -> StreamingResponse:
-    return await stream_result(lambda: services.series_gaps("tv"), "正在分析剧集续集…")
+    return await stream_result(lambda sink: services.series_gaps("tv", sink), "正在分析剧集续集…")
 
 
 @router.get("/tv-shows/subtitle-gaps")
 async def tv_subtitle_gaps() -> StreamingResponse:
-    return await stream_result(lambda: services.subtitle_gaps("tv"), "正在检测剧集字幕…")
+    return await stream_result(lambda sink: services.subtitle_gaps("tv", sink), "正在检测剧集字幕…")
 
 
 @router.get("/anime/diff")
@@ -37,12 +37,12 @@ async def anime_diff() -> StreamingResponse:
 
 @router.get("/anime/series-gaps")
 async def anime_series_gaps() -> StreamingResponse:
-    return await stream_result(lambda: services.series_gaps("anime"), "正在分析动画续集…")
+    return await stream_result(lambda sink: services.series_gaps("anime", sink), "正在分析动画续集…")
 
 
 @router.get("/anime/subtitle-gaps")
 async def anime_subtitle_gaps() -> StreamingResponse:
-    return await stream_result(lambda: services.subtitle_gaps("anime"), "正在检测动画字幕…")
+    return await stream_result(lambda sink: services.subtitle_gaps("anime", sink), "正在检测动画字幕…")
 
 
 # --- Fast JSON endpoints -------------------------------------------------

@@ -19,6 +19,7 @@ export interface CardState {
     entry: CatalogEntry;
     status: "loading" | "ok" | "error";
     step: string;
+    pct: number;
     counts: CardCount[];
 }
 
@@ -71,7 +72,7 @@ export function useOverviewData(): {
             value: results[i],
         }));
         const status = results.every((r) => r == null) ? "error" : "ok";
-        return {entry, status, step: "", counts};
+        return {entry, status, step: "", pct: 0, counts};
     }
 
     async function load(): Promise<void> {
@@ -80,15 +81,17 @@ export function useOverviewData(): {
             entry,
             status: "loading",
             step: "",
+            pct: 0,
             counts: [],
         }));
         // Resolve each card independently so they fill in progressively;
         // reassigning the array (not mutating an index) keeps it reactive.
         await Promise.all(
             list.map(async (entry, i) => {
-                const onStep = (step: string) => {
+                const onStep = (step: string, pct: number) => {
                     if (cards.value[i]?.status === "loading") {
                         cards.value[i].step = step;
+                        cards.value[i].pct = pct;
                     }
                 };
                 const next = await loadEntry(entry, onStep);

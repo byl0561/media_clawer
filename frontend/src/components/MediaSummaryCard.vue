@@ -7,6 +7,7 @@ const props = defineProps<{
   entry: CatalogEntry;
   status: "loading" | "ok" | "error";
   step: string;
+  pct: number;
   counts: CardCount[];
 }>()
 
@@ -71,6 +72,12 @@ const synced = computed(
         </div>
       </div>
       <p class="truncate text-xs text-muted">{{ step || "加载中" }}</p>
+      <div class="h-0.5 w-full overflow-hidden rounded-full bg-surface-2">
+        <div
+          class="h-full rounded-full bg-accent transition-[width] duration-300"
+          :style="{width: pct + '%'}"
+        ></div>
+      </div>
     </div>
 
     <p v-else-if="status === 'error'" class="text-sm text-danger">数据加载失败</p>

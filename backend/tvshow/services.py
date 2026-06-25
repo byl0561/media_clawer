@@ -45,15 +45,26 @@ def _is_retained_anime(tv_show: TvShow) -> bool:
     return rate.score > 7.5 and rate.votes > 300
 
 
-async def _enrich_local_shows(shows: list) -> None:
+async def _enrich_local_shows(
+    shows: list,
+    sink=None,
+    pct_start: int = 0,
+    pct_end: int = 100,
+) -> None:
     sem = asyncio.Semaphore(5)
+    total = len(shows)
+    done = 0
 
     async def enrich_one(show):
+        nonlocal done
         async with sem:
             tmdb_show = await get_tmdb_tv_show(show.tmdb_id)
-        if tmdb_show is None:
-            return
-        show.tmdb_rate = tmdb_show.get_rate()
+        if tmdb_show is not None:
+            show.tmdb_rate = tmdb_show.get_rate()
+        done += 1
+        if sink is not None and total > 0:
+            pct = pct_start + done * (pct_end - pct_start) // total
+            await sink.report(f"正在匹配元数据 {done}/{total}", pct)
 
     await asyncio.gather(*[enrich_one(s) for s in shows])
 
@@ -100,7 +111,9 @@ def _diff(source_shows, local_shows, is_retained) -> dict:
     }
 
 
-async def tv_diff() -> dict:
+async def tv_diff(sink=None) -> dict:
+    if sink:
+        await sink.report("正在爬取豆瓣剧集榜单…", 5)
     loop = asyncio.get_running_loop()
     douban_tv_shows_lists = await asyncio.gather(
         crawl_dou_list(_DOULIST_ALL),
@@ -110,18 +123,28 @@ async def tv_diff() -> dict:
     if not douban_tv_shows:
         raise UpstreamUnavailable()
     douban_tv_shows = drop_excluded(douban_tv_shows, read_root_excludes(conf.TV_ROOT))
+
+    if sink:
+        await sink.report("正在扫描本地剧集库…", 35)
     local_shows = await loop.run_in_executor(None, crawl_local, conf.TV_ROOT)
-    await _enrich_local_shows(local_shows)
+    await _enrich_local_shows(local_shows, sink=sink, pct_start=40, pct_end=90)
+
     return _diff(douban_tv_shows, local_shows, _is_retained_tv_show)
 
 
-async def anime_diff() -> dict:
+async def anime_diff(sink=None) -> dict:
+    if sink:
+        await sink.report("正在爬取 Bangumi 动漫榜单…", 5)
     loop = asyncio.get_running_loop()
     bangumi_shows = await crawl_bangumi_tv_show_80(exclude_titles=_anime_excludes())
     if not bangumi_shows:
         raise UpstreamUnavailable()
+
+    if sink:
+        await sink.report("正在扫描本地动漫库…", 35)
     local_shows = await loop.run_in_executor(None, crawl_local, conf.ANIME_ROOT)
-    await _enrich_local_shows(local_shows)
+    await _enrich_local_shows(local_shows, sink=sink, pct_start=40, pct_end=90)
+
     return _diff(bangumi_shows, local_shows, _is_retained_anime)
 
 
@@ -135,71 +158,80 @@ def _season_ref(season) -> dict:
     }
 
 
-async def series_gaps(library: str) -> list:
+async def series_gaps(library: str, sink=None) -> list:
+    if sink:
+        await sink.report("正在扫描本地剧集库…", 5)
     loop = asyncio.get_running_loop()
     local_shows = await loop.run_in_executor(None, crawl_local, _LIBRARY_ROOT[library])
 
     sem = asyncio.Semaphore(5)
+    total = len(local_shows)
+    done = 0
 
     async def process_show(local_tv_show):
+        nonlocal done
         async with sem:
             tmdb_tv_show = await get_tmdb_tv_show(local_tv_show.tmdb_id)
-        if tmdb_tv_show is None:
-            return None
 
-        tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
+        result = None
+        if tmdb_tv_show is not None:
+            tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
 
-        missing_seasons = [
-            _season_ref(s)
-            for s in tmdb_tv_show.list_seasons()
-            if local_tv_show.get_season(s.num) is None and _legal_season(s)
-        ]
-
-        season_episode_map = local_tv_show.map_season_episodes()
-
-        async def check_incomplete(season_num, present_eps):
-            async with sem:
-                tmdb_season = await get_tmdb_tv_show_season(
-                    local_tv_show.tmdb_id, season_num
-                )
-            if tmdb_season is None:
-                return None
-            aired_missing = [
-                e.num
-                for e in tmdb_season.list_episodes()
-                if e.num not in present_eps and _legal_episode(e)
+            missing_seasons = [
+                _season_ref(s)
+                for s in tmdb_tv_show.list_seasons()
+                if local_tv_show.get_season(s.num) is None and _legal_season(s)
             ]
-            if not aired_missing:
-                return None
-            return {
-                "season_num": season_num,
-                "season_name": tmdb_season.name,
-                "local_max_episode": max(present_eps) if present_eps else 0,
-                "remote_max_episode": max(aired_missing),
-                "missing_count": len(aired_missing),
-            }
 
-        incomplete_results = await asyncio.gather(*[
-            check_incomplete(num, eps) for num, eps in season_episode_map.items()
-        ])
-        incomplete_seasons = [r for r in incomplete_results if r is not None]
+            season_episode_map = local_tv_show.map_season_episodes()
 
-        if not missing_seasons and not incomplete_seasons:
-            return None
+            async def check_incomplete(season_num, present_eps):
+                async with sem:
+                    tmdb_season = await get_tmdb_tv_show_season(
+                        local_tv_show.tmdb_id, season_num
+                    )
+                if tmdb_season is None:
+                    return None
+                aired_missing = [
+                    e.num
+                    for e in tmdb_season.list_episodes()
+                    if e.num not in present_eps and _legal_episode(e)
+                ]
+                if not aired_missing:
+                    return None
+                return {
+                    "season_num": season_num,
+                    "season_name": tmdb_season.name,
+                    "local_max_episode": max(present_eps) if present_eps else 0,
+                    "remote_max_episode": max(aired_missing),
+                    "missing_count": len(aired_missing),
+                }
 
-        local_seasons = []
-        for num in sorted(local_tv_show.seasons.keys()):
-            tmdb_season = tmdb_seasons_by_num.get(num)
-            if tmdb_season is None:
-                continue
-            local_seasons.append(_season_ref(tmdb_season))
+            incomplete_results = await asyncio.gather(*[
+                check_incomplete(num, eps) for num, eps in season_episode_map.items()
+            ])
+            incomplete_seasons = [r for r in incomplete_results if r is not None]
 
-        return {
-            "show": _show_to_dict(tmdb_tv_show),
-            "local_seasons": local_seasons,
-            "missing_seasons": missing_seasons,
-            "incomplete_seasons": incomplete_seasons,
-        }
+            if missing_seasons or incomplete_seasons:
+                local_seasons = []
+                for num in sorted(local_tv_show.seasons.keys()):
+                    tmdb_season = tmdb_seasons_by_num.get(num)
+                    if tmdb_season is None:
+                        continue
+                    local_seasons.append(_season_ref(tmdb_season))
+
+                result = {
+                    "show": _show_to_dict(tmdb_tv_show),
+                    "local_seasons": local_seasons,
+                    "missing_seasons": missing_seasons,
+                    "incomplete_seasons": incomplete_seasons,
+                }
+
+        done += 1
+        if sink is not None and total > 0:
+            pct = 8 + done * 87 // total
+            await sink.report(f"正在分析续集 {done}/{total}", pct)
+        return result
 
     results = await asyncio.gather(*[process_show(s) for s in local_shows])
     return [r for r in results if r is not None]
@@ -378,65 +410,45 @@ async def warm_subtitle_cache() -> None:
     await asyncio.gather(subtitle_gaps("tv"), subtitle_gaps("anime"))
 
 
-async def subtitle_gaps(library: str) -> list:
+async def subtitle_gaps(library: str, sink=None) -> list:
+    if sink:
+        await sink.report("正在扫描本地剧集库…", 5)
     loop = asyncio.get_running_loop()
     local_shows = await loop.run_in_executor(None, crawl_local, _LIBRARY_ROOT[library])
 
     tmdb_sem = asyncio.Semaphore(5)
     ffprobe_sem = asyncio.Semaphore(8)
+    total = len(local_shows)
+    done = 0
 
     async def process_show(local_tv_show):
+        nonlocal done
         async with tmdb_sem:
             tmdb_tv_show = await get_tmdb_tv_show(local_tv_show.tmdb_id)
-        if tmdb_tv_show is None:
-            return None
 
-        cutoffs = _read_subtitle_cutoffs(local_tv_show.path or "")
-        tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
+        result = None
+        if tmdb_tv_show is not None:
+            cutoffs = _read_subtitle_cutoffs(local_tv_show.path or "")
+            tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
 
-        async def check_season(num, local_season):
-            cutoff = cutoffs.get(num, 0)
+            async def check_season(num, local_season):
+                cutoff = cutoffs.get(num, 0)
 
-            async def check_ep(ep):
-                if ep.num <= cutoff or not ep.video_path:
+                async def check_ep(ep):
+                    if ep.num <= cutoff or not ep.video_path:
+                        return None
+                    if await async_has_subtitle(ep.video_path, ffprobe_sem):
+                        return None
+                    return ep.num
+
+                missing_eps = [
+                    r for r in await asyncio.gather(*[check_ep(ep) for ep in local_season.episodes.values()])
+                    if r is not None
+                ]
+                if not missing_eps:
                     return None
-                if await async_has_subtitle(ep.video_path, ffprobe_sem):
-                    return None
-                return ep.num
-
-            missing_eps = [
-                r for r in await asyncio.gather(*[check_ep(ep) for ep in local_season.episodes.values()])
-                if r is not None
-            ]
-            if not missing_eps:
-                return None
-            tmdb_season = tmdb_seasons_by_num.get(num)
-            return {
-                "num": num,
-                "name": tmdb_season.name if tmdb_season else f"第 {num} 季",
-                "poster": tmdb_season.poster if tmdb_season else None,
-                "score": (
-                    round(tmdb_season.rate.score, 1)
-                    if tmdb_season and tmdb_season.rate and tmdb_season.rate.score > 0
-                    else None
-                ),
-                "missing_count": len(missing_eps),
-                "max_missing_episode": max(missing_eps),
-            }
-
-        season_results = await asyncio.gather(*[
-            check_season(num, local_season)
-            for num, local_season in local_tv_show.seasons.items()
-        ])
-        gap_seasons = [s for s in season_results if s is not None]
-
-        for num in local_tv_show.empty_seasons:
-            if cutoffs.get(num, 0) > 0:
-                continue
-            tmdb_season = tmdb_seasons_by_num.get(num)
-            expected = tmdb_season.episode_count if tmdb_season else 0
-            gap_seasons.append(
-                {
+                tmdb_season = tmdb_seasons_by_num.get(num)
+                return {
                     "num": num,
                     "name": tmdb_season.name if tmdb_season else f"第 {num} 季",
                     "poster": tmdb_season.poster if tmdb_season else None,
@@ -445,18 +457,48 @@ async def subtitle_gaps(library: str) -> list:
                         if tmdb_season and tmdb_season.rate and tmdb_season.rate.score > 0
                         else None
                     ),
-                    "missing_count": expected,
-                    "max_missing_episode": expected,
+                    "missing_count": len(missing_eps),
+                    "max_missing_episode": max(missing_eps),
                 }
-            )
 
-        if not gap_seasons:
-            return None
-        gap_seasons.sort(key=lambda s: s["num"])
-        return {
-            "show": _show_to_dict(tmdb_tv_show),
-            "seasons": gap_seasons,
-        }
+            season_results = await asyncio.gather(*[
+                check_season(num, local_season)
+                for num, local_season in local_tv_show.seasons.items()
+            ])
+            gap_seasons = [s for s in season_results if s is not None]
+
+            for num in local_tv_show.empty_seasons:
+                if cutoffs.get(num, 0) > 0:
+                    continue
+                tmdb_season = tmdb_seasons_by_num.get(num)
+                expected = tmdb_season.episode_count if tmdb_season else 0
+                gap_seasons.append(
+                    {
+                        "num": num,
+                        "name": tmdb_season.name if tmdb_season else f"第 {num} 季",
+                        "poster": tmdb_season.poster if tmdb_season else None,
+                        "score": (
+                            round(tmdb_season.rate.score, 1)
+                            if tmdb_season and tmdb_season.rate and tmdb_season.rate.score > 0
+                            else None
+                        ),
+                        "missing_count": expected,
+                        "max_missing_episode": expected,
+                    }
+                )
+
+            if gap_seasons:
+                gap_seasons.sort(key=lambda s: s["num"])
+                result = {
+                    "show": _show_to_dict(tmdb_tv_show),
+                    "seasons": gap_seasons,
+                }
+
+        done += 1
+        if sink is not None and total > 0:
+            pct = 8 + done * 87 // total
+            await sink.report(f"正在检测字幕 {done}/{total}", pct)
+        return result
 
     results = await asyncio.gather(*[process_show(s) for s in local_shows])
     return [r for r in results if r is not None]

@@ -40,8 +40,10 @@ def _serialize(books) -> list:
     return [_book_to_dict(b) for b in books]
 
 
-async def diff() -> dict:
+async def diff(sink=None) -> dict:
     """Douban Top 250 vs. local library -> {"missing": [...], "extra": [...]}."""
+    if sink:
+        await sink.report("正在爬取豆瓣书单…", 5)
     loop = asyncio.get_running_loop()
     douban_books, local_books = await asyncio.gather(
         crawl_douban_250(exclude_titles=_book_excludes()),

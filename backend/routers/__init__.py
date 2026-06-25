@@ -6,6 +6,7 @@ from typing import AsyncIterator, Callable
 from fastapi.responses import StreamingResponse
 
 from core.exceptions import UpstreamUnavailable
+from core.progress import ProgressSink
 
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
@@ -19,37 +20,43 @@ def _sse(event: str, data) -> str:
 
 
 async def stream_result(fn: Callable, progress_msg: str = "正在处理…") -> StreamingResponse:
-    """Stream a service call as SSE.
+    """Stream a service call as SSE with live progress.
 
-    Accepts both coroutine functions and plain callables that return a
-    coroutine (e.g. ``lambda: services.series_gaps("tv")``).
-    Sends a heartbeat comment every 10 s so nginx/CDN proxies don't time out.
+    ``fn`` receives a ProgressSink as its first argument and must call
+    ``await sink.report(step, pct)`` to push progress events.  The SSE
+    generator drains the queue in real time; a heartbeat comment fires every
+    10 s so nginx/CDN proxies don't time out between events.
     """
 
     async def generate() -> AsyncIterator[str]:
+        q: asyncio.Queue = asyncio.Queue()
+        sink = ProgressSink(q)
+
         yield _sse("progress", {"step": progress_msg, "pct": 0})
 
-        # Resolve to a coroutine regardless of how fn is wrapped
         if asyncio.iscoroutinefunction(fn):
-            coro = fn()
+            coro = fn(sink)
         else:
-            maybe = fn()
+            maybe = fn(sink)
             if asyncio.iscoroutine(maybe):
                 coro = maybe
             else:
-                # Already a plain value (sync fallback — shouldn't happen post-migration)
                 yield _sse("result", maybe)
                 return
 
         task = asyncio.create_task(coro)
+        # Wake the queue reader immediately when the task finishes.
+        task.add_done_callback(lambda _: q.put_nowait(None))
 
-        while not task.done():
+        while True:
             try:
-                await asyncio.wait_for(asyncio.shield(task), timeout=10.0)
+                msg = await asyncio.wait_for(q.get(), timeout=10.0)
             except asyncio.TimeoutError:
                 yield ": heartbeat\n\n"
-            except Exception:
+                continue
+            if msg is None:  # sentinel — task is done
                 break
+            yield _sse("progress", msg)
 
         try:
             yield _sse("result", task.result())

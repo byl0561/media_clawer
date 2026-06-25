@@ -41,7 +41,7 @@ export async function httpPost<T>(
  */
 export function httpGetSSE<T>(
     url: string,
-    onProgress?: (step: string) => void,
+    onProgress?: (step: string, pct: number) => void,
 ): Promise<ApiResult<T>> {
     return new Promise((resolve) => {
         const es = new EventSource(url);
@@ -59,7 +59,7 @@ export function httpGetSSE<T>(
             if (!onProgress) return;
             try {
                 const d = JSON.parse((e as MessageEvent).data);
-                if (d?.step) onProgress(d.step);
+                if (d?.step) onProgress(d.step, d.pct ?? 0);
             } catch {}
         });
 

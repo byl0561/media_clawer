@@ -31,28 +31,39 @@ def _is_retained(movie: Movie) -> bool:
 _NO_SET = MovieSet(None, None, "TMDB")
 
 
-async def _enrich_local_movies(movies: list) -> None:
+async def _enrich_local_movies(
+    movies: list,
+    sink=None,
+    pct_start: int = 0,
+    pct_end: int = 100,
+) -> None:
     """Parallel TMDB enrichment; cap to 5 concurrent requests."""
     sem = asyncio.Semaphore(5)
+    total = len(movies)
+    done = 0
 
     async def enrich_one(movie):
+        nonlocal done
         async with sem:
             tmdb_movie = await get_tmdb_movie(movie.tmdb_id)
-        if tmdb_movie is None:
-            return
-        movie.tmdb_rate = tmdb_movie.get_rate()
-        new_set = tmdb_movie.move_set
-        if new_set.set_id is not None and new_set.set_id in movie.skip_collections:
-            new_set = _NO_SET
-        movie.tmdb_set = new_set
+        if tmdb_movie is not None:
+            movie.tmdb_rate = tmdb_movie.get_rate()
+            new_set = tmdb_movie.move_set
+            if new_set.set_id is not None and new_set.set_id in movie.skip_collections:
+                new_set = _NO_SET
+            movie.tmdb_set = new_set
+        done += 1
+        if sink is not None and total > 0:
+            pct = pct_start + done * (pct_end - pct_start) // total
+            await sink.report(f"正在匹配元数据 {done}/{total}", pct)
 
     await asyncio.gather(*[enrich_one(m) for m in movies])
 
 
-async def _local_movies() -> list:
+async def _local_movies(sink=None, pct_start: int = 0, pct_end: int = 50) -> list:
     loop = asyncio.get_running_loop()
     movies = await loop.run_in_executor(None, crawl_local, conf.MOVIE_ROOT)
-    await _enrich_local_movies(movies)
+    await _enrich_local_movies(movies, sink=sink, pct_start=pct_start, pct_end=pct_end)
     return movies
 
 
@@ -81,13 +92,20 @@ def _serialize(movies) -> list:
     return [_movie_to_dict(m) for m in movies]
 
 
-async def diff() -> dict:
+async def diff(sink=None) -> dict:
     """Douban Top 250 vs. local library -> {"missing": [...], "extra": [...]}."""
+    if sink:
+        await sink.report("正在爬取豆瓣电影榜单…", 5)
     douban_movies = await crawl_douban_250()
     if not douban_movies:
         raise UpstreamUnavailable()
     douban_movies = drop_excluded(douban_movies, read_root_excludes(conf.MOVIE_ROOT))
-    local_movies = await _local_movies()
+
+    if sink:
+        await sink.report("正在扫描本地电影库…", 40)
+    loop = asyncio.get_running_loop()
+    local_movies = await loop.run_in_executor(None, crawl_local, conf.MOVIE_ROOT)
+    await _enrich_local_movies(local_movies, sink=sink, pct_start=45, pct_end=90)
 
     missing_movies = get_missing_movies(douban_movies, local_movies)
     extra_movies = get_extra_movies(douban_movies, local_movies)
@@ -122,9 +140,11 @@ def _weighted_score(rates) -> Optional[float]:
     return round(weighted / total_votes, 1)
 
 
-async def series_gaps() -> list:
+async def series_gaps(sink=None) -> list:
     """Owned TMDB collections with local and missing members."""
-    local_movies = await _local_movies()
+    if sink:
+        await sink.report("正在扫描本地电影库…", 5)
+    local_movies = await _local_movies(sink=sink, pct_start=8, pct_end=50)
 
     grouped: dict = {}
     for movie in local_movies:
@@ -134,10 +154,17 @@ async def series_gaps() -> list:
         grouped.setdefault(set_id, []).append(movie)
 
     sem = asyncio.Semaphore(5)
+    total_sets = len(grouped)
+    done_sets = 0
 
     async def process_set(set_id, locals_):
+        nonlocal done_sets
         async with sem:
             members = await get_tmdb_movies_in_set(set_id)
+        done_sets += 1
+        if sink is not None and total_sets > 0:
+            pct = 52 + done_sets * 43 // total_sets
+            await sink.report(f"正在分析合集 {done_sets}/{total_sets}", pct)
         if not members:
             return None
         local_ids = {m.tmdb_id for m in locals_}
@@ -235,21 +262,30 @@ async def warm_subtitle_cache() -> None:
     await subtitle_gaps()
 
 
-async def subtitle_gaps() -> list:
+async def subtitle_gaps(sink=None) -> list:
     """Local movies missing both external and embedded subtitles."""
     loop = asyncio.get_running_loop()
     movies = await loop.run_in_executor(None, crawl_local, conf.MOVIE_ROOT)
+    total = len(movies)
+    done = 0
     ffprobe_sem = asyncio.Semaphore(8)
 
+    if sink and total > 0:
+        await sink.report(f"正在检测字幕 0/{total}", 5)
+
     async def check_movie(movie):
-        if not movie.path:
-            return None
-        cfg = read_config(movie.path)
-        if cfg.get("skip_subtitle_check"):
-            return None
-        if await _folder_has_subtitle(movie.path, ffprobe_sem):
-            return None
-        return movie
+        nonlocal done
+        result = None
+        if movie.path:
+            cfg = read_config(movie.path)
+            if not cfg.get("skip_subtitle_check"):
+                if not await _folder_has_subtitle(movie.path, ffprobe_sem):
+                    result = movie
+        done += 1
+        if sink is not None and total > 0:
+            pct = 8 + done * 87 // total
+            await sink.report(f"正在检测字幕 {done}/{total}", pct)
+        return result
 
     results = await asyncio.gather(*[check_movie(m) for m in movies])
     result = sorted(

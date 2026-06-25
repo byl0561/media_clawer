@@ -13,7 +13,7 @@ import type {
     SubtitleShowGap,
 } from "@/types/api";
 
-type OnProgress = (step: string) => void;
+type OnProgress = (step: string, pct: number) => void;
 export type Loader<T> = (onProgress?: OnProgress) => Promise<ApiResult<T>>;
 
 /** Map a server media object to the UI's MediaItem shape. */
