@@ -1,4 +1,4 @@
-import {httpGet, httpPost} from "@/http/client";
+import {httpGet, httpGetSSE, httpPost} from "@/http/client";
 import type {
     AlbumAliasTarget,
     AlbumItem,
@@ -24,10 +24,9 @@ import type {
     TokenBindLibrary,
 } from "@/types/api";
 
-// RESTful, versioned API. Nginx proxies `/api/` to the Django backend.
+// RESTful, versioned API. Nginx proxies `/api/` to the FastAPI backend.
 const V1 = "/api/v1";
 
-// Maps a library to its REST URL segment (tv -> tv-shows).
 const IGNORE_SEGMENT: Record<IgnoreLibrary, string> = {
     tv: "tv-shows",
     anime: "anime",
@@ -41,43 +40,37 @@ const BIND_SEGMENT: Record<BindLibrary, string> = {
     book: "books",
 };
 
-export const diffMovie = () => httpGet<Diff<MovieItem>>(`${V1}/movies/diff`);
-export const movieSeriesGaps = () =>
-    httpGet<MovieSeriesGap[]>(`${V1}/movies/series-gaps`);
+// --- SSE-backed slow endpoints (no timeout risk) ------------------------
+
+export const diffMovie = () => httpGetSSE<Diff<MovieItem>>(`${V1}/movies/diff`);
+export const movieSeriesGaps = () => httpGetSSE<MovieSeriesGap[]>(`${V1}/movies/series-gaps`);
+export const movieSubtitleGaps = () => httpGetSSE<MovieItem[]>(`${V1}/movies/subtitle-gaps`);
+
+export const diffTV = () => httpGetSSE<Diff<ShowItem>>(`${V1}/tv-shows/diff`);
+export const tvSeriesGaps = () => httpGetSSE<ShowSeriesGap[]>(`${V1}/tv-shows/series-gaps`);
+export const tvSubtitleGaps = () => httpGetSSE<SubtitleShowGap[]>(`${V1}/tv-shows/subtitle-gaps`);
+
+export const diffAnime = () => httpGetSSE<Diff<ShowItem>>(`${V1}/anime/diff`);
+export const animeSeriesGaps = () => httpGetSSE<ShowSeriesGap[]>(`${V1}/anime/series-gaps`);
+export const animeSubtitleGaps = () => httpGetSSE<SubtitleShowGap[]>(`${V1}/anime/subtitle-gaps`);
+
+export const diffAlbum = () => httpGetSSE<Diff<AlbumItem>>(`${V1}/albums/diff`);
+export const albumLyricGaps = () => httpGetSSE<AlbumLyricGap[]>(`${V1}/albums/lyric-gaps`);
+
+export const diffBook = () => httpGetSSE<Diff<BookItem>>(`${V1}/books/diff`);
+
+// --- Fast JSON endpoints (plain httpGet / httpPost) ----------------------
+
 export const ignoreMovieCollection = (collectionId: number) =>
     httpPost<IgnoreCollectionResult>(`${V1}/movies/ignore-collection`, {
         collection_id: collectionId,
     });
 
-export const diffTV = () => httpGet<Diff<ShowItem>>(`${V1}/tv-shows/diff`);
-export const tvSeriesGaps = () =>
-    httpGet<ShowSeriesGap[]>(`${V1}/tv-shows/series-gaps`);
-
-export const diffAnime = () => httpGet<Diff<ShowItem>>(`${V1}/anime/diff`);
-export const animeSeriesGaps = () =>
-    httpGet<ShowSeriesGap[]>(`${V1}/anime/series-gaps`);
-
-export const diffAlbum = () => httpGet<Diff<AlbumItem>>(`${V1}/albums/diff`);
-export const diffBook = () => httpGet<Diff<BookItem>>(`${V1}/books/diff`);
-
-// --- Subtitle / lyric gaps ----------------------------------------------
-
-export const movieSubtitleGaps = () =>
-    httpGet<MovieItem[]>(`${V1}/movies/subtitle-gaps`);
 export const ignoreMovieSubtitle = (tmdbId: number) =>
     httpPost<IgnoreFlagResult>(`${V1}/movies/ignore-subtitle`, {tmdb_id: tmdbId});
 
-export const tvSubtitleGaps = () =>
-    httpGet<SubtitleShowGap[]>(`${V1}/tv-shows/subtitle-gaps`);
-export const animeSubtitleGaps = () =>
-    httpGet<SubtitleShowGap[]>(`${V1}/anime/subtitle-gaps`);
-
-export const albumLyricGaps = () =>
-    httpGet<AlbumLyricGap[]>(`${V1}/albums/lyric-gaps`);
 export const ignoreAlbumLyric = (token: string) =>
     httpPost<IgnoreFlagResult>(`${V1}/albums/ignore-lyric`, {token});
-
-// --- Per-show ignore dialogs (series + subtitle modes) ------------------
 
 export const ignoreOptions = (
     library: IgnoreLibrary,
@@ -106,8 +99,6 @@ export const applyIgnore = (
     });
 };
 
-// Two response shapes — tmdb-id libraries vs token-keyed libraries — share
-// the same endpoint name but differ in row schema.
 export const aliasTargetsById = (library: TmdbBindLibrary) =>
     httpGet<AliasTarget[]>(`${V1}/${BIND_SEGMENT[library]}/alias-targets`);
 

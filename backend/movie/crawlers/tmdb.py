@@ -3,26 +3,18 @@ import json
 from typing import Optional
 
 from core import conf
-from core.http import http_get_with_cache
+from core.http import async_http_get_with_cache
 from movie.models import MovieSet, Rate, TmdbMovie
 
 
-def get_tmdb_movie(tmdb_id: int, cache: bool = True) -> Optional[TmdbMovie]:
-    """Single-movie payload used to backfill MoviePilot NFOs.
-
-    MP NFOs (current as of 2026-05) emit only a flat ``<rating>`` and no
-    ``<set>``/``<uniqueid type="tmdbSet">``. ``votes`` and ``belongs_to_collection``
-    are pulled from here so the retention threshold and the sequel-tied
-    carry-over can do their job — see ``movie.services._enrich_local_movies``.
-    """
+async def get_tmdb_movie(tmdb_id: int, cache: bool = True) -> Optional[TmdbMovie]:
     url = (
         f"https://api.themoviedb.org/3/movie/{tmdb_id}"
         f"?api_key={conf.TMDB_API_KEY}&language=zh-CN"
     )
-    res = http_get_with_cache(
+    res = await async_http_get_with_cache(
         url,
         cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
-        sleep_s=0.2,
         need_cache=cache,
         retry=True,
     )
@@ -48,15 +40,14 @@ def get_tmdb_movie(tmdb_id: int, cache: bool = True) -> Optional[TmdbMovie]:
     )
 
 
-def get_tmdb_movies_in_set(movie_set_id: int, cache: bool = True) -> list:
+async def get_tmdb_movies_in_set(movie_set_id: int, cache: bool = True) -> list:
     url = (
         f"https://api.themoviedb.org/3/collection/{movie_set_id}"
         f"?api_key={conf.TMDB_API_KEY}&language=zh-CN"
     )
-    res = http_get_with_cache(
+    res = await async_http_get_with_cache(
         url,
         cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
-        sleep_s=0.2,
         need_cache=cache,
         retry=True,
     )
@@ -79,5 +70,4 @@ def get_tmdb_movies_in_set(movie_set_id: int, cache: bool = True) -> list:
                 movie_set,
             )
         )
-
     return movies

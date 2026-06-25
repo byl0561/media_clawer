@@ -1,121 +1,116 @@
-"""Bangumi anime ranking scraper. Parsing/curation rules unchanged."""
+"""Bangumi anime ranking scraper. Pages are batched concurrently (5 per batch)."""
+import asyncio
 import re
 from datetime import datetime
+from typing import List, Optional
 
 import bs4
 
 from core import conf
-from core.http import http_get_with_cache
+from core.http import async_http_get_with_cache
 from core.matching import title_excluded
 from tvshow.models import BangumiTvShow, Rate
 
-
 _MAX_PAGES = 30
-_MAX_CONSECUTIVE_FAILURES = 5
+_BATCH_SIZE = 5
 
 
-def crawl_bangumi_tv_show_80(cache: bool = True, exclude_titles=None) -> list:
-    """Scrape the Bangumi anime rank pages until we collect 80 entries.
+def _parse_page(html: str, exclude_titles: List[str]) -> List[BangumiTvShow]:
+    items_out = []
+    bs = bs4.BeautifulSoup(html, "html.parser")
+    container = bs.find("ul", class_="browserFull")
+    if container is None:
+        return items_out
+    for item in container.find_all("li", class_="item"):
+        title_index = 0
+        title_split_strs = item.find("a", class_="l").get_text().strip().split(" ")
+        for index, title_split_str in enumerate(title_split_strs):
+            if len(title_split_str) > 1:
+                title_index = index
+                break
 
-    ``exclude_titles`` is the caller-supplied ignore list (built-in long-show
-    defaults + ``<ANIME_ROOT>/.mediaclawer.json``); matching anime are skipped
-    *during* collection so they don't eat slots in the 80-entry budget.
-
-    Stops on three conditions to avoid the runaway-loop case that used to
-    drive page numbers into the hundreds when Bangumi's TLS flapped:
-
-    1. 80 anime collected (the original happy path);
-    2. ``_MAX_PAGES`` hit — if the curation filters reject too much we'd
-       otherwise scan indefinitely;
-    3. ``_MAX_CONSECUTIVE_FAILURES`` upstream errors in a row — when
-       Bangumi is down, retrying every page just floods their server
-       and our logs.
-    """
-    excludes = exclude_titles or []
-    tv_shows = []
-    tv_show_names = set()
-
-    page = 0
-    failures = 0
-    while not check_max_size(tv_shows) and page < _MAX_PAGES:
-        page += 1
-        url = "https://bangumi.tv/anime/browser/tv/?sort=rank&page=" + str(page)
-        res = http_get_with_cache(
-            url,
-            headers={"User-Agent": conf.USER_AGENT},
-            cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
-            sleep_s=0,
-            need_cache=cache,
+        title = item.find("a", class_="l").get_text().strip().split(" ")[title_index]
+        title = trim_title(title)
+        id = int(item.find("a", class_="l").get("href").split("/")[-1])
+        origin_title = (
+            item.find("small", class_="grey").get_text().strip().split(" ")[title_index]
+            if item.find("small", class_="grey") is not None
+            else None
         )
-        if res is None:
-            failures += 1
-            if failures >= _MAX_CONSECUTIVE_FAILURES:
-                break
+        match = re.search(
+            r"\d{4}年\d{1,2}月\d{1,2}日",
+            item.find("p", class_="info tip").get_text().strip(),
+        )
+        if match is None:
             continue
-        failures = 0
+        date = match.group()
+        poster = item.find("span", class_="image").find("img").get("src").strip()
+        score = float(
+            item.find("p", class_="rateInfo")
+            .find("small", class_="fade")
+            .get_text()
+            .strip()
+        )
+        votes = int(
+            item.find("p", class_="rateInfo")
+            .find("span", class_="tip_j")
+            .get_text()
+            .replace("人评分)", "")
+            .replace("(", "")
+            .strip()
+        )
+        anime = BangumiTvShow(
+            id, title, origin_title, date, poster, Rate(score, votes, "Bangumi")
+        )
+        if check(anime, exclude_titles):
+            items_out.append(anime)
+    return items_out
 
-        bs = bs4.BeautifulSoup(res, "html.parser")
-        bs = bs.find("ul", class_="browserFull")
-        for item in bs.find_all("li", class_="item"):
-            if check_max_size(tv_shows):
-                break
 
-            title_index = 0
-            title_split_strs = item.find("a", class_="l").get_text().strip().split(" ")
-            for index, title_split_str in enumerate(title_split_strs):
-                if len(title_split_str) > 1:
-                    title_index = index
-                    break
+async def crawl_bangumi_tv_show_80(
+    cache: bool = True, exclude_titles: Optional[List[str]] = None
+) -> list:
+    """Fetch Bangumi rank pages in batches of 5 until 80 unique entries collected."""
+    excludes = exclude_titles or []
+    tv_shows: List[BangumiTvShow] = []
+    seen_names: set = set()
 
-            title = item.find("a", class_="l").get_text().strip().split(" ")[title_index]
-            title = trim_title(title)
-            id = int(item.find("a", class_="l").get("href").split("/")[-1])
-            origin_title = (
-                item.find("small", class_="grey").get_text().strip().split(" ")[
-                    title_index
-                ]
-                if item.find("small", class_="grey") is not None
-                else None
+    for batch_start in range(0, _MAX_PAGES, _BATCH_SIZE):
+        page_nums = range(batch_start + 1, min(batch_start + _BATCH_SIZE + 1, _MAX_PAGES + 1))
+        urls = [
+            f"https://bangumi.tv/anime/browser/tv/?sort=rank&page={p}"
+            for p in page_nums
+        ]
+        htmls = await asyncio.gather(*[
+            async_http_get_with_cache(
+                u,
+                headers={"User-Agent": conf.USER_AGENT},
+                cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
+                need_cache=cache,
             )
-            match = re.search(
-                r"\d{4}年\d{1,2}月\d{1,2}日",
-                item.find("p", class_="info tip").get_text().strip(),
-            )
-            if match is None:
+            for u in urls
+        ])
+
+        batch_had_results = False
+        for html in htmls:
+            if html is None:
                 continue
-            date = match.group()
-            poster = item.find("span", class_="image").find("img").get("src").strip()
-            score = float(
-                item.find("p", class_="rateInfo")
-                .find("small", class_="fade")
-                .get_text()
-                .strip()
-            )
-            votes = int(
-                item.find("p", class_="rateInfo")
-                .find("span", class_="tip_j")
-                .get_text()
-                .replace("人评分)", "")
-                .replace("(", "")
-                .strip()
-            )
-            anime = BangumiTvShow(
-                id, title, origin_title, date, poster, Rate(score, votes, "Bangumi")
-            )
+            for anime in _parse_page(html, excludes):
+                titles = anime.get_titles()
+                if any(t in seen_names for t in titles):
+                    continue
+                tv_shows.append(anime)
+                seen_names.update(titles)
+                batch_had_results = True
+                if len(tv_shows) >= 80:
+                    return tv_shows[:80]
 
-            titles = anime.get_titles()
-            duplicated = any(t in tv_show_names for t in titles)
-            if duplicated or not check(anime, excludes):
-                continue
+        # Stop early if the whole batch returned nothing (Bangumi may be down)
+        if not batch_had_results and all(h is None for h in htmls):
+            break
 
-            tv_shows.append(anime)
-            tv_show_names = tv_show_names.union(set(titles))
+    return tv_shows[:80]
 
-    return tv_shows
-
-
-def check_max_size(tv_shows: list) -> bool:
-    return len(tv_shows) > 80
 
 
 def check(anime: BangumiTvShow, exclude_titles=None) -> bool:
@@ -136,20 +131,9 @@ def check(anime: BangumiTvShow, exclude_titles=None) -> bool:
 
 
 def trim_title(title):
-    """Generic normalisation of a scraped Bangumi rank title.
-
-    Only library-agnostic cleanup lives here now: strip stray ``'`` / ``°`` and
-    a trailing season number (``进击的巨人3`` -> ``进击的巨人``) so the fuzzy
-    matcher sees a stable stem.
-
-    Per-title canonicalisation (the old hand-maintained ``物语`` -> ``物语系列``
-    style map) is intentionally gone — bind the truncated rank title as an
-    ``aliases`` entry on the owned show's ``.mediaclawer.json`` (UI: the bind
-    dialog) instead, which does the same job without a redeploy.
-    """
+    """Normalise a scraped Bangumi rank title (strip noise, trailing season digits)."""
     if title is None:
         return None
-
     for remove_str in ["'", "°"]:
         title = title.replace(remove_str, "")
     return title.rstrip("0123456789")

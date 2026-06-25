@@ -1,8 +1,5 @@
-"""Album diff use-case (logic moved out of the old ``music.views``).
-
-Recomputed every request; only the upstream Douban response stays cached
-(via :mod:`core.http`), kept warm by cron.
-"""
+"""Album diff use-case — fully async."""
+import asyncio
 import os
 from typing import List
 
@@ -20,51 +17,49 @@ from core.media_probe import AUDIO_EXTS, has_lyrics
 from music.crawlers.douban import crawl_douban_250
 from music.crawlers.local import crawl_local
 from music.matching import get_missing_albums
-from music.serializers import AlbumSerializer
+
+
+def _album_to_dict(obj) -> dict:
+    titles = obj.get_titles()
+    rate = obj.get_rate()
+    return {
+        "title": titles[0] if titles else "",
+        "score": round(rate.score, 1) if rate is not None else None,
+        "votes": rate.votes if rate is not None else None,
+        "poster": obj.get_poster(),
+        "link": obj.get_link(),
+        "artist": obj.get_artist(),
+        "year": obj.get_year(),
+    }
 
 
 def _serialize(albums) -> list:
-    return AlbumSerializer(albums, many=True).data
+    return [_album_to_dict(a) for a in albums]
 
 
-def diff() -> dict:
+async def diff() -> dict:
     """Douban Top 250 vs. local library -> {"missing": [...], "extra": [...]}."""
-    douban_albums = crawl_douban_250()
+    loop = asyncio.get_running_loop()
+    douban_albums, local_albums = await asyncio.gather(
+        crawl_douban_250(),
+        loop.run_in_executor(None, crawl_local, conf.MUSIC_ROOT),
+    )
     if not douban_albums:
         raise UpstreamUnavailable()
-    # Library-wide ignore list (<MUSIC_ROOT>/.mediaclawer.json -> exclude_titles).
     douban_albums = drop_excluded(douban_albums, read_root_excludes(conf.MUSIC_ROOT))
-    local_albums = crawl_local(conf.MUSIC_ROOT)
     return {
         "missing": _serialize(get_missing_albums(douban_albums, local_albums)),
         "extra": _serialize(get_missing_albums(local_albums, douban_albums)),
     }
 
 
-def refresh_all() -> None:
+async def refresh_all() -> None:
     """Repopulate the upstream Douban cache (used by cron)."""
-    crawl_douban_250(cache=False)
-
-
-# --- Alias bind (manual chinese-title supplement) -----------------------
-# Album entries have no public unique key (no TMDB/Douban ID on the local
-# side), so the alias-bind handshake uses a signed token wrapping the
-# on-disk folder path (see core.identifiers). The tvshow/movie flow uses
-# tmdb_id directly; structurally identical otherwise.
+    await crawl_douban_250(cache=False)
 
 
 def _album_has_full_lyrics(folder: str) -> bool:
-    """An album counts as fully lyric'd iff every audio track carries lyrics.
-
-    Walks subfolders too — multi-disc albums commonly land under
-    ``Album/CD1/...``, ``Album/CD2/...``, and the old listdir-only version
-    falsely reported them as "all lyric'd" because the top level had no
-    audio files of its own.
-
-    Returns False when the album folder contains no audio at all — a
-    metadata-only album folder with the tracks missing is itself a gap and
-    should land in the lyric list.
-    """
+    """True iff every audio track in the album (incl. sub-disc folders) has lyrics."""
     if not os.path.isdir(folder):
         return True
     found_any = False
@@ -78,50 +73,42 @@ def _album_has_full_lyrics(folder: str) -> bool:
     return found_any
 
 
-def warm_lyric_cache() -> None:
-    """Pre-walk every local album so lyric probes are cached.
-
-    Just calls :func:`lyric_gaps` and discards the response — the side
-    effect (populating ``media_probe``'s Redis cache for every track)
-    means the first user-facing /albums/lyric-gaps doesn't pay the per-
-    file mutagen-open cost.
-    """
-    lyric_gaps()
+async def warm_lyric_cache() -> None:
+    await lyric_gaps()
 
 
-def lyric_gaps() -> list:
-    """Local albums whose tracks are missing embedded lyrics on any song.
+async def lyric_gaps() -> list:
+    """Local albums missing embedded lyrics on any track."""
+    loop = asyncio.get_running_loop()
+    albums = await loop.run_in_executor(None, crawl_local, conf.MUSIC_ROOT)
 
-    "Any missing track means the album is flagged" — matches the user spec
-    that a single tagless track in the album should surface the album. Honours
-    ``skip_lyric_check`` in the album's ``.mediaclawer.json``. Each row carries
-    a signed token so the frontend's ignore action can address the album
-    without exposing the on-disk path.
-    """
-    result = []
-    for album in crawl_local(conf.MUSIC_ROOT):
+    async def check_album(album):
         if not album.path:
-            continue
+            return None
         cfg = read_config(album.path)
         if cfg.get("skip_lyric_check"):
-            continue
-        if _album_has_full_lyrics(album.path):
-            continue
-        result.append(
-            {
-                "token": encode_local_path(album.path),
-                "title": album.title,
-                "artist": album.artist,
-                "year": album.year,
-                "poster": album.poster,
-            }
-        )
-    result.sort(key=lambda x: (x["title"] or "").lower())
+            return None
+        # mutagen reads only file headers (small I/O); run in thread pool
+        has_lyr = await loop.run_in_executor(None, _album_has_full_lyrics, album.path)
+        if has_lyr:
+            return None
+        return {
+            "token": encode_local_path(album.path),
+            "title": album.title,
+            "artist": album.artist,
+            "year": album.year,
+            "poster": album.poster,
+        }
+
+    results = await asyncio.gather(*[check_album(a) for a in albums])
+    result = sorted(
+        [r for r in results if r is not None],
+        key=lambda x: (x["title"] or "").lower(),
+    )
     return result
 
 
 def ignore_lyric(token: str) -> dict:
-    """Set ``skip_lyric_check: true`` on the album's ``.mediaclawer.json``."""
     try:
         path = decode_local_path(token)
     except ValueError as exc:
@@ -137,7 +124,6 @@ def ignore_lyric(token: str) -> dict:
 
 
 def alias_targets() -> list:
-    """All local albums usable as bind targets for a missing rank item."""
     targets = []
     for local in crawl_local(conf.MUSIC_ROOT):
         if not local.path:
@@ -156,7 +142,6 @@ def alias_targets() -> list:
 
 
 def alias_bind(token: str, aliases: List[str]) -> dict:
-    """Append ``aliases`` to the album's ``.mediaclawer.json``."""
     try:
         path = decode_local_path(token)
     except ValueError as exc:
@@ -164,7 +149,6 @@ def alias_bind(token: str, aliases: List[str]) -> dict:
 
     base = os.path.realpath(conf.MUSIC_ROOT)
     target = os.path.realpath(path)
-    # 双重防御：即使 token 解码出的 path 越过 root，也拒绝
     if target != base and not target.startswith(base + os.sep):
         raise ShowNotFound()
     if not os.path.isdir(target):

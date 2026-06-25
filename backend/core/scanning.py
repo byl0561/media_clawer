@@ -1,14 +1,12 @@
-"""Parallel local-library scanning.
+"""Parallel local-library scanning using a thread pool.
 
-Replaces ``utils.file_utils``. Same map/filter semantics, but:
-
-* a missing library root yields ``[]`` instead of raising (the folder may be
-  an unmounted volume in production);
-* the worker count is configurable instead of a hard-coded ``12``;
-* the process pool is always cleaned up via a context manager.
+Thread pool replaces multiprocessing.Pool because the bottleneck is NFS I/O
+(not CPU): the GIL is released during I/O syscalls so threads parallelize
+reads as effectively as processes, without the process-spawn overhead
+(~0.5 s per worker on macOS where multiprocessing uses 'spawn').
 """
-import multiprocessing
 import os
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import Any, Callable, List
 
@@ -16,9 +14,6 @@ from core import conf
 
 __all__ = ["scan_files", "scan_dirs"]
 
-# Directory names to skip at every level. Per-platform recycle bins keep
-# deleted files on disk, so without this the scanner would still pick up
-# movie.nfo / tvshow.nfo from items the user "deleted".
 _EXCLUDED_DIRS = {
     "#recycle",        # Synology
     "@Recycle",        # QNAP
@@ -26,12 +21,11 @@ _EXCLUDED_DIRS = {
     "RECYCLER",        # Windows XP
     ".Trash",          # Linux / generic
     ".Trashes",        # macOS (volume-level)
-    ".Trash-1000",     # Linux freedesktop (uid 1000 — covers single-user NAS)
+    ".Trash-1000",     # Linux freedesktop (uid 1000)
 }
 
 
 def _excluded(name: str) -> bool:
-    # Linux freedesktop trash is .Trash-<uid>; cover the general case too.
     return name in _EXCLUDED_DIRS or name.startswith(".Trash-")
 
 
@@ -76,10 +70,11 @@ def _run(root, collector, name_filter, mapper) -> List[Any]:
     subdirs = _top_level_subdirs(root)
     if not subdirs:
         return []
-    with multiprocessing.Pool(conf.SCAN_WORKERS) as pool:
-        nested = pool.map(partial(collector, name_filter=name_filter), subdirs)
+    collect = partial(collector, name_filter=name_filter)
+    with ThreadPoolExecutor(max_workers=conf.SCAN_WORKERS) as pool:
+        nested = list(pool.map(collect, subdirs))
         paths = [p for sub in nested for p in sub]
-        objects = pool.map(mapper, paths)
+        objects = list(pool.map(mapper, paths))
     return [obj for obj in objects if obj is not None]
 
 

@@ -1,10 +1,5 @@
-"""Book diff use-case (logic moved out of the old ``book.views``).
-
-Recomputed every request; only the upstream Douban response stays cached
-(via :mod:`core.http`), kept warm by cron. ``_is_retained_book`` is kept as
-the original unconditional ``True`` (so ``extra`` stays empty) to preserve
-the diff semantics exactly.
-"""
+"""Book diff use-case — fully async."""
+import asyncio
 import os
 from typing import List
 
@@ -16,12 +11,7 @@ from book.crawlers.douban import crawl_douban_250
 from book.crawlers.local import crawl_local
 from book.matching import get_missing_books
 from book.models import Book
-from book.serializers import BookSerializer
 
-
-# Reference/children's books to keep off the chart. Historical built-in
-# defaults; users add more (redeploy-free) via ``<BOOK_ROOT>/.mediaclawer.json``
-# -> ``exclude_titles``.
 _BOOK_DEFAULT_EXCLUDES = ["中国少年儿童百科全书", "十万个为什么"]
 
 
@@ -33,16 +23,32 @@ def _is_retained_book(book: Book) -> bool:
     return True
 
 
+def _book_to_dict(obj) -> dict:
+    titles = obj.get_titles()
+    rate = obj.get_rate()
+    return {
+        "title": titles[0] if titles else "",
+        "score": round(rate.score, 1) if rate is not None else None,
+        "votes": rate.votes if rate is not None else None,
+        "poster": obj.get_poster(),
+        "link": obj.get_link(),
+        "author": obj.get_author(),
+    }
+
+
 def _serialize(books) -> list:
-    return BookSerializer(books, many=True).data
+    return [_book_to_dict(b) for b in books]
 
 
-def diff() -> dict:
+async def diff() -> dict:
     """Douban Top 250 vs. local library -> {"missing": [...], "extra": [...]}."""
-    douban_books = crawl_douban_250(exclude_titles=_book_excludes())
+    loop = asyncio.get_running_loop()
+    douban_books, local_books = await asyncio.gather(
+        crawl_douban_250(exclude_titles=_book_excludes()),
+        loop.run_in_executor(None, crawl_local, conf.BOOK_ROOT),
+    )
     if not douban_books:
         raise UpstreamUnavailable()
-    local_books = crawl_local(conf.BOOK_ROOT)
     missing_books = get_missing_books(douban_books, local_books)
     extra_books = get_missing_books(local_books, douban_books)
     return {
@@ -51,22 +57,16 @@ def diff() -> dict:
     }
 
 
-def refresh_all() -> None:
+async def refresh_all() -> None:
     """Repopulate the upstream Douban cache (used by cron)."""
-    crawl_douban_250(cache=False, exclude_titles=_book_excludes())
-
-
-# --- Alias bind (manual chinese-title supplement) -----------------------
-# Book entries have no public unique key; same signed-token flow as albums.
+    await crawl_douban_250(cache=False, exclude_titles=_book_excludes())
 
 
 def alias_targets() -> list:
-    """All local books usable as bind targets for a missing rank item."""
     targets = []
     for local in crawl_local(conf.BOOK_ROOT):
         if not local.path:
             continue
-        # LocalBook.titles 是按 "_" split 的，取第 0 个作为展示标题
         display_title = local.titles[0] if local.titles else ""
         targets.append(
             {
@@ -81,7 +81,6 @@ def alias_targets() -> list:
 
 
 def alias_bind(token: str, aliases: List[str]) -> dict:
-    """Append ``aliases`` to the book's ``.mediaclawer.json``."""
     try:
         path = decode_local_path(token)
     except ValueError as exc:

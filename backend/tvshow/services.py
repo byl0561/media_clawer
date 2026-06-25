@@ -1,14 +1,5 @@
-"""TV/anime diff use-cases (logic moved out of the old ``tvshow.views``).
-
-The diff is recomputed on every request; only the upstream Douban/Bangumi/
-TMDB responses stay cached (via :mod:`core.http`), kept warm by cron. ``tv``
-and ``anime`` share this module because the anime endpoints have always been
-served by this app against the anime library root.
-
-``local_gaps`` merges the old season-missing and episode-missing endpoints:
-one local scan + one ``get_tmdb_tv_show`` per show (instead of two passes),
-returning both whole-missing seasons and behind-on-episodes seasons.
-"""
+"""TV/anime diff use-cases — fully async."""
+import asyncio
 import os
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -24,24 +15,19 @@ from core.local_config import (
     set_season_subtitle_checked,
 )
 from core.matching import drop_excluded
-from core.media_probe import has_subtitle
+from core.media_probe import async_has_subtitle
 from tvshow.crawlers.bangumi import crawl_bangumi_tv_show_80
 from tvshow.crawlers.douban import crawl_dou_list
 from tvshow.crawlers.local import crawl_local, process_file
 from tvshow.crawlers.tmdb import get_tmdb_tv_show, get_tmdb_tv_show_season
 from tvshow.matching import combine_tv_show, get_missing_tv_shows
 from tvshow.models import TvShow
-from tvshow.serializers import TvShowSerializer
 
 _DOULIST_ALL = "https://www.douban.com/doulist/116238969/"
 _DOULIST_RECENT = "https://www.douban.com/doulist/113919174/"
 
 _LIBRARY_ROOT = {"tv": conf.TV_ROOT, "anime": conf.ANIME_ROOT}
 
-# Long-running anime that perpetually add episodes — excluded from the Bangumi
-# chart so they don't sit on the "missing" list forever. These are the
-# historical built-in defaults; users add more (redeploy-free) via
-# ``<ANIME_ROOT>/.mediaclawer.json`` -> ``exclude_titles``.
 _ANIME_DEFAULT_EXCLUDES = ["死神", "银魂", "航海王", "瑞克和莫蒂"]
 
 
@@ -51,32 +37,25 @@ def _anime_excludes() -> List[str]:
 
 def _is_retained_tv_show(tv_show: TvShow) -> bool:
     rate = tv_show.get_rate()
-    # 200 votes ≈ TMDB /tv/top_rated lower tail; tighter than /movie/top_rated's
-    # 300 because TV samples themselves are smaller.
     return rate.score > 7.5 and rate.votes > 200
 
 
 def _is_retained_anime(tv_show: TvShow) -> bool:
     rate = tv_show.get_rate()
-    # Same 300-vote floor as movies. TMDB anime tends to score lower than
-    # Bangumi/MAL even for genre staples, so 7.5 is already lenient.
     return rate.score > 7.5 and rate.votes > 300
 
 
-def _enrich_local_shows(shows: list) -> None:
-    """Replace each local show's TMDB rate with live ``/tv/{id}``.
+async def _enrich_local_shows(shows: list) -> None:
+    sem = asyncio.Semaphore(5)
 
-    MoviePilot's ``tvshow.nfo`` omits ``<votes>`` (parser defaults to 0) and
-    even tmm's is a scrape-time snapshot that drifts from current TMDB. The
-    retention check rides current-TMDB, so we always pull fresh — cache-hit
-    on the warm path since :func:`refresh_all`'s :func:`_flush_tmdb` pre-
-    warms ``/tv/{id}`` per show.
-    """
-    for show in shows:
-        tmdb_show = get_tmdb_tv_show(show.tmdb_id)
+    async def enrich_one(show):
+        async with sem:
+            tmdb_show = await get_tmdb_tv_show(show.tmdb_id)
         if tmdb_show is None:
-            continue
+            return
         show.tmdb_rate = tmdb_show.get_rate()
+
+    await asyncio.gather(*[enrich_one(s) for s in shows])
 
 
 def _legal_season(season) -> bool:
@@ -94,8 +73,22 @@ def _legal_episode(episode) -> bool:
     return datetime.strptime(date_str, "%Y-%m-%d") < datetime.today()
 
 
+def _show_to_dict(obj) -> dict:
+    titles = obj.get_titles()
+    rate = obj.get_rate()
+    return {
+        "title": titles[0] if titles else "",
+        "score": round(rate.score, 1) if rate is not None else None,
+        "votes": rate.votes if rate is not None else None,
+        "poster": obj.get_poster(),
+        "link": obj.get_link(),
+        "year": obj.get_years(),
+        "tmdb_id": getattr(obj, "tmdb_id", None),
+    }
+
+
 def _shows(tv_shows) -> list:
-    return TvShowSerializer(tv_shows, many=True).data
+    return [_show_to_dict(s) for s in tv_shows]
 
 
 def _diff(source_shows, local_shows, is_retained) -> dict:
@@ -107,27 +100,28 @@ def _diff(source_shows, local_shows, is_retained) -> dict:
     }
 
 
-def tv_diff() -> dict:
-    douban_tv_shows = combine_tv_show(
-        crawl_dou_list(_DOULIST_ALL), crawl_dou_list(_DOULIST_RECENT)
+async def tv_diff() -> dict:
+    loop = asyncio.get_running_loop()
+    douban_tv_shows_lists = await asyncio.gather(
+        crawl_dou_list(_DOULIST_ALL),
+        crawl_dou_list(_DOULIST_RECENT),
     )
+    douban_tv_shows = combine_tv_show(*douban_tv_shows_lists)
     if not douban_tv_shows:
         raise UpstreamUnavailable()
-    # Library-wide ignore list (<TV_ROOT>/.mediaclawer.json -> exclude_titles).
     douban_tv_shows = drop_excluded(douban_tv_shows, read_root_excludes(conf.TV_ROOT))
-    local_shows = crawl_local(conf.TV_ROOT)
-    _enrich_local_shows(local_shows)
+    local_shows = await loop.run_in_executor(None, crawl_local, conf.TV_ROOT)
+    await _enrich_local_shows(local_shows)
     return _diff(douban_tv_shows, local_shows, _is_retained_tv_show)
 
 
-def anime_diff() -> dict:
-    # Excludes are threaded into the crawl (not applied after) so ignored long
-    # shows don't eat slots in the "collect 80" loop — preserving the chart depth.
-    bangumi_shows = crawl_bangumi_tv_show_80(exclude_titles=_anime_excludes())
+async def anime_diff() -> dict:
+    loop = asyncio.get_running_loop()
+    bangumi_shows = await crawl_bangumi_tv_show_80(exclude_titles=_anime_excludes())
     if not bangumi_shows:
         raise UpstreamUnavailable()
-    local_shows = crawl_local(conf.ANIME_ROOT)
-    _enrich_local_shows(local_shows)
+    local_shows = await loop.run_in_executor(None, crawl_local, conf.ANIME_ROOT)
+    await _enrich_local_shows(local_shows)
     return _diff(bangumi_shows, local_shows, _is_retained_anime)
 
 
@@ -141,28 +135,17 @@ def _season_ref(season) -> dict:
     }
 
 
-def series_gaps(library: str) -> list:
-    """Per-show snapshot of local + missing + incomplete seasons.
+async def series_gaps(library: str) -> list:
+    loop = asyncio.get_running_loop()
+    local_shows = await loop.run_in_executor(None, crawl_local, _LIBRARY_ROOT[library])
 
-    Each entry returns enough for the frontend's left-stack / right-tile
-    layout:
+    sem = asyncio.Semaphore(5)
 
-      [{
-          "show": <show>,                    # TMDB show w/ poster + score
-          "local_seasons":    [{num, name, poster}, ...],  # what user has
-          "missing_seasons":  [{num, name, poster}, ...],  # whole seasons gone
-          "incomplete_seasons": [...]                       # behind-on-episodes
-      }, ...]
-
-    Posters for both lists come from TMDB seasons (matched by season number);
-    local NFOs don't carry per-season images. Shows with nothing missing or
-    behind are dropped — there's nothing to surface.
-    """
-    result = []
-    for local_tv_show in crawl_local(_LIBRARY_ROOT[library]):
-        tmdb_tv_show = get_tmdb_tv_show(local_tv_show.tmdb_id)
+    async def process_show(local_tv_show):
+        async with sem:
+            tmdb_tv_show = await get_tmdb_tv_show(local_tv_show.tmdb_id)
         if tmdb_tv_show is None:
-            continue
+            return None
 
         tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
 
@@ -172,33 +155,37 @@ def series_gaps(library: str) -> list:
             if local_tv_show.get_season(s.num) is None and _legal_season(s)
         ]
 
-        # "Incomplete" used to mean "ep > local_max"; switch to "any aired
-        # episode missing from the local set" so middle gaps (1,2,4,5 with
-        # 3 missing) get reported too.
-        incomplete_seasons = []
-        for season_num, present_eps in local_tv_show.map_season_episodes().items():
-            tmdb_season = get_tmdb_tv_show_season(local_tv_show.tmdb_id, season_num)
+        season_episode_map = local_tv_show.map_season_episodes()
+
+        async def check_incomplete(season_num, present_eps):
+            async with sem:
+                tmdb_season = await get_tmdb_tv_show_season(
+                    local_tv_show.tmdb_id, season_num
+                )
             if tmdb_season is None:
-                continue
+                return None
             aired_missing = [
                 e.num
                 for e in tmdb_season.list_episodes()
                 if e.num not in present_eps and _legal_episode(e)
             ]
             if not aired_missing:
-                continue
-            incomplete_seasons.append(
-                {
-                    "season_num": season_num,
-                    "season_name": tmdb_season.name,
-                    "local_max_episode": max(present_eps) if present_eps else 0,
-                    "remote_max_episode": max(aired_missing),
-                    "missing_count": len(aired_missing),
-                }
-            )
+                return None
+            return {
+                "season_num": season_num,
+                "season_name": tmdb_season.name,
+                "local_max_episode": max(present_eps) if present_eps else 0,
+                "remote_max_episode": max(aired_missing),
+                "missing_count": len(aired_missing),
+            }
+
+        incomplete_results = await asyncio.gather(*[
+            check_incomplete(num, eps) for num, eps in season_episode_map.items()
+        ])
+        incomplete_seasons = [r for r in incomplete_results if r is not None]
 
         if not missing_seasons and not incomplete_seasons:
-            continue
+            return None
 
         local_seasons = []
         for num in sorted(local_tv_show.seasons.keys()):
@@ -207,41 +194,50 @@ def series_gaps(library: str) -> list:
                 continue
             local_seasons.append(_season_ref(tmdb_season))
 
-        result.append(
-            {
-                "show": TvShowSerializer(tmdb_tv_show).data,
-                "local_seasons": local_seasons,
-                "missing_seasons": missing_seasons,
-                "incomplete_seasons": incomplete_seasons,
-            }
-        )
-    return result
+        return {
+            "show": _show_to_dict(tmdb_tv_show),
+            "local_seasons": local_seasons,
+            "missing_seasons": missing_seasons,
+            "incomplete_seasons": incomplete_seasons,
+        }
+
+    results = await asyncio.gather(*[process_show(s) for s in local_shows])
+    return [r for r in results if r is not None]
 
 
-def _flush_tmdb(root: str) -> None:
-    for local_tv_show in crawl_local(root):
-        get_tmdb_tv_show(local_tv_show.tmdb_id, cache=False)
-        for season_num in local_tv_show.map_season_max_episode():
-            get_tmdb_tv_show_season(local_tv_show.tmdb_id, season_num, cache=False)
+async def _flush_tmdb(root: str) -> None:
+    loop = asyncio.get_running_loop()
+    local_shows = await loop.run_in_executor(None, crawl_local, root)
+    sem = asyncio.Semaphore(5)
+
+    async def flush_show(show):
+        async with sem:
+            await get_tmdb_tv_show(show.tmdb_id, cache=False)
+        season_nums = list(show.map_season_max_episode().keys())
+
+        async def flush_season(num):
+            async with sem:
+                await get_tmdb_tv_show_season(show.tmdb_id, num, cache=False)
+
+        await asyncio.gather(*[flush_season(n) for n in season_nums])
+
+    await asyncio.gather(*[flush_show(s) for s in local_shows])
 
 
-def refresh_all() -> None:
+async def refresh_all() -> None:
     """Repopulate the upstream Douban / Bangumi / TMDB caches (used by cron)."""
-    crawl_dou_list(_DOULIST_ALL, cache=False)
-    crawl_dou_list(_DOULIST_RECENT, cache=False)
-    crawl_bangumi_tv_show_80(cache=False, exclude_titles=_anime_excludes())
-    _flush_tmdb(conf.TV_ROOT)
-    _flush_tmdb(conf.ANIME_ROOT)
-
-
-# --- Ignore (skip-marker) management ------------------------------------
-# A per-season ``checked_episode`` cutoff in the show's ``.mediaclawer.json``
-# suppresses that season (shadow season) and every episode <= the cutoff
-# from the gap list. These endpoints let the UI write that cutoff per season.
+    await asyncio.gather(
+        crawl_dou_list(_DOULIST_ALL, cache=False),
+        crawl_dou_list(_DOULIST_RECENT, cache=False),
+        crawl_bangumi_tv_show_80(cache=False, exclude_titles=_anime_excludes()),
+    )
+    await asyncio.gather(
+        _flush_tmdb(conf.TV_ROOT),
+        _flush_tmdb(conf.ANIME_ROOT),
+    )
 
 
 def _find_show_dir(root: str, tmdb_id: int) -> Optional[str]:
-    """Directory of the ``tvshow.nfo`` whose tmdb ``uniqueid`` == ``tmdb_id``."""
     base = os.path.realpath(root)
     if not os.path.isdir(base):
         return None
@@ -258,15 +254,7 @@ def _find_show_dir(root: str, tmdb_id: int) -> Optional[str]:
     return None
 
 
-def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
-    """Locate the show and list its still-missing seasons + episode choices.
-
-    Returns ``(show_dir, title, seasons)``; ``show_dir`` is ``None`` when no
-    local ``tvshow.nfo`` matches ``tmdb_id``. The offered episodes mirror the
-    gap rules in :func:`local_gaps` exactly — only TMDB ``_legal_episode``s
-    beyond what is already present or already checked — so selecting a
-    season's latest offered episode precisely closes that season's gap.
-    """
+async def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
     root = _LIBRARY_ROOT[library]
     show_dir = _find_show_dir(root, tmdb_id)
     if show_dir is None:
@@ -276,7 +264,8 @@ def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
         local_tv_show = process_file(os.path.join(show_dir, "tvshow.nfo"))
     except (ET.ParseError, ValueError, TypeError, AttributeError):
         local_tv_show = None
-    tmdb_tv_show = get_tmdb_tv_show(tmdb_id)
+
+    tmdb_tv_show = await get_tmdb_tv_show(tmdb_id)
     if local_tv_show is None or tmdb_tv_show is None:
         return show_dir, "", []
 
@@ -284,19 +273,21 @@ def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
     candidates = set(present_per_season)
     list_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
     for tmdb_season in tmdb_tv_show.list_seasons():
-        if local_tv_show.get_season(tmdb_season.num) is None and _legal_season(
-            tmdb_season
-        ):
+        if local_tv_show.get_season(tmdb_season.num) is None and _legal_season(tmdb_season):
             candidates.add(tmdb_season.num)
+
+    async def get_season_detail(num):
+        return num, await get_tmdb_tv_show_season(tmdb_id, num)
+
+    season_detail_pairs = await asyncio.gather(*[get_season_detail(n) for n in sorted(candidates)])
+    season_details = dict(season_detail_pairs)
 
     seasons = []
     for num in sorted(candidates):
         present_eps = present_per_season.get(num, set())
         local_max = max(present_eps) if present_eps else 0
-        detail = get_tmdb_tv_show_season(tmdb_id, num)
+        detail = season_details.get(num)
 
-        # Happy path: per-season detail exists and the user is behind on any
-        # aired episode (not just the trailing ones).
         aired = (
             [
                 e
@@ -321,9 +312,6 @@ def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
             )
             continue
 
-        # Fallback: no per-episode data we can offer. The season still showed
-        # up in 续集, so the user must be able to dismiss it — synthesise a
-        # single "整季" entry using whatever max-episode hint we have.
         synth_max = 0
         if detail is not None:
             synth_max = max((e.num for e in detail.list_episodes()), default=0)
@@ -344,23 +332,15 @@ def _gap_seasons(library: str, tmdb_id: int) -> Tuple[Optional[str], str, list]:
     return show_dir, tmdb_tv_show.get_titles()[0], seasons
 
 
-def ignore_options(library: str, tmdb_id: int) -> dict:
-    """Seasons/episodes the user may choose to ignore (opened on demand)."""
-    show_dir, title, seasons = _gap_seasons(library, tmdb_id)
+async def ignore_options(library: str, tmdb_id: int) -> dict:
+    show_dir, title, seasons = await _gap_seasons(library, tmdb_id)
     if show_dir is None:
         raise ShowNotFound()
     return {"title": title, "seasons": seasons}
 
 
-def ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
-    """Persist per-season ``checked_episode`` cutoffs to the show's JSON.
-
-    ``selections`` is ``[{"season_num": int, "episode": int}, ...]``.
-    ``fully_ignored`` is true iff every still-missing season was selected at
-    or beyond its latest offered episode — the frontend uses it to close the
-    poster without waiting for a rescan.
-    """
-    show_dir, _title, gap_seasons = _gap_seasons(library, tmdb_id)
+async def ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
+    show_dir, _title, gap_seasons = await _gap_seasons(library, tmdb_id)
     if show_dir is None:
         raise ShowNotFound()
 
@@ -378,33 +358,7 @@ def ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
     return {"fully_ignored": fully_ignored}
 
 
-# --- Subtitle gap + per-season subtitle ignore --------------------------
-# Mirrors the series-gap structure: one entry per show, listing the seasons
-# whose local episodes have at least one missing subtitle (external file or
-# embedded stream). The "已有/待加" split doesn't apply here — only the
-# affected seasons are shown — so we surface them through ``missing_seasons``
-# with a ``missing_count`` annotation and leave ``local_seasons`` /
-# ``incomplete_seasons`` empty.
-
-
-def _episode_subtitle_missing(local_ep) -> bool:
-    """True iff this episode has a video on disk and no subtitle for it."""
-    if not local_ep.video_path:
-        return False
-    return not has_subtitle(local_ep.video_path)
-
-
-def _season_subtitle_gap(local_season, subtitle_cutoff: int):
-    """Numbers of episodes in this season above ``subtitle_cutoff`` missing subs."""
-    return [
-        ep.num
-        for ep in local_season.episodes.values()
-        if ep.num > subtitle_cutoff and _episode_subtitle_missing(ep)
-    ]
-
-
 def _read_subtitle_cutoffs(folder: str) -> dict:
-    """Per-season ``subtitle_checked_episode`` map from the show's JSON."""
     cfg = read_config(folder) if folder else {}
     out: dict = {}
     for k, v in (cfg.get("seasons") or {}).items():
@@ -420,58 +374,62 @@ def _read_subtitle_cutoffs(folder: str) -> dict:
     return out
 
 
-def warm_subtitle_cache() -> None:
-    """Pre-walk every local TV/anime episode so subtitle probes are cached.
-
-    Runs the gap builder for both libraries and discards the responses;
-    the per-file ffprobe cost lands in ``media_probe``'s Redis cache so
-    the first user-facing subtitle-gap request stays fast.
-    """
-    subtitle_gaps("tv")
-    subtitle_gaps("anime")
+async def warm_subtitle_cache() -> None:
+    await asyncio.gather(subtitle_gaps("tv"), subtitle_gaps("anime"))
 
 
-def subtitle_gaps(library: str) -> list:
-    """Per-show seasons whose local episodes are missing a subtitle.
+async def subtitle_gaps(library: str) -> list:
+    loop = asyncio.get_running_loop()
+    local_shows = await loop.run_in_executor(None, crawl_local, _LIBRARY_ROOT[library])
 
-    Any single episode (above the user's per-season ``subtitle_checked_episode``
-    cutoff) without an external sibling or embedded subtitle marks the whole
-    season for attention.
-    """
-    result = []
-    for local_tv_show in crawl_local(_LIBRARY_ROOT[library]):
-        tmdb_tv_show = get_tmdb_tv_show(local_tv_show.tmdb_id)
+    tmdb_sem = asyncio.Semaphore(5)
+    ffprobe_sem = asyncio.Semaphore(8)
+
+    async def process_show(local_tv_show):
+        async with tmdb_sem:
+            tmdb_tv_show = await get_tmdb_tv_show(local_tv_show.tmdb_id)
         if tmdb_tv_show is None:
-            continue
+            return None
 
         cutoffs = _read_subtitle_cutoffs(local_tv_show.path or "")
         tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
 
-        gap_seasons = []
-        for num, local_season in local_tv_show.seasons.items():
+        async def check_season(num, local_season):
             cutoff = cutoffs.get(num, 0)
-            missing_eps = _season_subtitle_gap(local_season, cutoff)
-            if not missing_eps:
-                continue
-            tmdb_season = tmdb_seasons_by_num.get(num)
-            gap_seasons.append(
-                {
-                    "num": num,
-                    "name": tmdb_season.name if tmdb_season else f"第 {num} 季",
-                    "poster": tmdb_season.poster if tmdb_season else None,
-                    "score": (
-                        round(tmdb_season.rate.score, 1)
-                        if tmdb_season and tmdb_season.rate and tmdb_season.rate.score > 0
-                        else None
-                    ),
-                    "missing_count": len(missing_eps),
-                    "max_missing_episode": max(missing_eps),
-                }
-            )
 
-        # Season folders that exist on disk but contain no video at all.
-        # Subtitle gap is independent of the series-side checked_episode —
-        # only ``subtitle_checked_episode`` silences here.
+            async def check_ep(ep):
+                if ep.num <= cutoff or not ep.video_path:
+                    return None
+                if await async_has_subtitle(ep.video_path, ffprobe_sem):
+                    return None
+                return ep.num
+
+            missing_eps = [
+                r for r in await asyncio.gather(*[check_ep(ep) for ep in local_season.episodes.values()])
+                if r is not None
+            ]
+            if not missing_eps:
+                return None
+            tmdb_season = tmdb_seasons_by_num.get(num)
+            return {
+                "num": num,
+                "name": tmdb_season.name if tmdb_season else f"第 {num} 季",
+                "poster": tmdb_season.poster if tmdb_season else None,
+                "score": (
+                    round(tmdb_season.rate.score, 1)
+                    if tmdb_season and tmdb_season.rate and tmdb_season.rate.score > 0
+                    else None
+                ),
+                "missing_count": len(missing_eps),
+                "max_missing_episode": max(missing_eps),
+            }
+
+        season_results = await asyncio.gather(*[
+            check_season(num, local_season)
+            for num, local_season in local_tv_show.seasons.items()
+        ])
+        gap_seasons = [s for s in season_results if s is not None]
+
         for num in local_tv_show.empty_seasons:
             if cutoffs.get(num, 0) > 0:
                 continue
@@ -493,19 +451,18 @@ def subtitle_gaps(library: str) -> list:
             )
 
         if not gap_seasons:
-            continue
+            return None
         gap_seasons.sort(key=lambda s: s["num"])
-        result.append(
-            {
-                "show": TvShowSerializer(tmdb_tv_show).data,
-                "seasons": gap_seasons,
-            }
-        )
-    return result
+        return {
+            "show": _show_to_dict(tmdb_tv_show),
+            "seasons": gap_seasons,
+        }
+
+    results = await asyncio.gather(*[process_show(s) for s in local_shows])
+    return [r for r in results if r is not None]
 
 
-def subtitle_ignore_options(library: str, tmdb_id: int) -> dict:
-    """Per-season episode list that the subtitle-ignore dialog renders."""
+async def subtitle_ignore_options(library: str, tmdb_id: int) -> dict:
     root = _LIBRARY_ROOT[library]
     show_dir = _find_show_dir(root, tmdb_id)
     if show_dir is None:
@@ -515,24 +472,31 @@ def subtitle_ignore_options(library: str, tmdb_id: int) -> dict:
         local_tv_show = process_file(os.path.join(show_dir, "tvshow.nfo"))
     except (ET.ParseError, ValueError, TypeError, AttributeError):
         local_tv_show = None
-    tmdb_tv_show = get_tmdb_tv_show(tmdb_id)
+    tmdb_tv_show = await get_tmdb_tv_show(tmdb_id)
     if local_tv_show is None or tmdb_tv_show is None:
         return {"title": "", "seasons": []}
 
     cutoffs = _read_subtitle_cutoffs(show_dir)
     tmdb_seasons_by_num = {s.num: s for s in tmdb_tv_show.list_seasons()}
+    ffprobe_sem = asyncio.Semaphore(4)
 
     seasons = []
     for num in sorted(local_tv_show.seasons.keys()):
         local_season = local_tv_show.seasons[num]
         cutoff = cutoffs.get(num, 0)
-        missing_eps = _season_subtitle_gap(local_season, cutoff)
+
+        async def _ep_missing(ep, _cutoff=cutoff):
+            if ep.num <= _cutoff or not ep.video_path:
+                return None
+            if await async_has_subtitle(ep.video_path, ffprobe_sem):
+                return None
+            return ep.num
+
+        ep_results = await asyncio.gather(*(_ep_missing(ep) for ep in local_season.episodes.values()))
+        missing_eps = sorted(r for r in ep_results if r is not None)
         if not missing_eps:
             continue
-        missing_eps.sort()
         tmdb_season = tmdb_seasons_by_num.get(num)
-        # Build per-episode picker entries from the local episodes that lack
-        # subtitle — that's what "ignore subtitle up to ep N" actually means.
         episode_entries = []
         for ep_num in missing_eps:
             ep = local_season.episodes.get(ep_num)
@@ -553,40 +517,17 @@ def subtitle_ignore_options(library: str, tmdb_id: int) -> dict:
             }
         )
 
-    # Empty season folders surface in subtitle_gaps too; offer a synthetic
-    # "整季" choice keyed at TMDB's episode_count so the user can dismiss
-    # them from the dialog without having any real local episodes to pick.
-    # Independent of series-side checked_episode — only subtitle_checked_
-    # episode silences entries here.
-    for num in sorted(local_tv_show.empty_seasons):
-        if cutoffs.get(num, 0) > 0:
-            continue
-        tmdb_season = tmdb_seasons_by_num.get(num)
-        expected = tmdb_season.episode_count if tmdb_season else 0
-        if expected <= 0:
-            expected = 1
-        seasons.append(
-            {
-                "season_num": num,
-                "season_name": tmdb_season.name if tmdb_season else f"第 {num} 季",
-                "local_max_episode": 0,
-                "latest_episode": expected,
-                "episodes": [{"num": expected, "name": "整季", "date": None}],
-            }
-        )
-
     return {"title": tmdb_tv_show.get_titles()[0], "seasons": seasons}
 
 
-def subtitle_ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
-    """Persist per-season ``subtitle_checked_episode`` cutoffs to the JSON."""
+async def subtitle_ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
     root = _LIBRARY_ROOT[library]
     show_dir = _find_show_dir(root, tmdb_id)
     if show_dir is None:
         raise ShowNotFound()
 
     chosen = {int(s["season_num"]): int(s["episode"]) for s in selections}
-    options = subtitle_ignore_options(library, tmdb_id)
+    options = await subtitle_ignore_options(library, tmdb_id)
     fully_ignored = bool(options["seasons"]) and all(
         g["season_num"] in chosen and chosen[g["season_num"]] >= g["latest_episode"]
         for g in options["seasons"]
@@ -600,20 +541,7 @@ def subtitle_ignore_apply(library: str, tmdb_id: int, selections: list) -> dict:
     return {"fully_ignored": fully_ignored}
 
 
-# --- Alias bind (manual chinese-title supplement) -----------------------
-# The "最新" tab lists ranked items missing locally. When the rank list is
-# in chinese but a local nfo's <title> is in the original language (TMDB has
-# no chinese translation for the item), text-similarity match in
-# tvshow.matching can't connect the two. The bind endpoints let the user say
-# "this rank item is actually that local show", and we append the rank
-# title as an alias so future scans find the match without code changes.
-
-
 def alias_targets(library: str) -> list:
-    """All local shows usable as bind targets for a missing rank item.
-
-    -> [{tmdb_id, title, year, poster}]. Sorted by title for stable UI.
-    """
     targets = []
     for local in crawl_local(_LIBRARY_ROOT[library]):
         targets.append(
@@ -629,11 +557,6 @@ def alias_targets(library: str) -> list:
 
 
 def alias_bind(library: str, tmdb_id: int, aliases: List[str]) -> dict:
-    """Append ``aliases`` to the show's ``.mediaclawer.json``.
-
-    -> ``{bound: bool, added: int}``. ``added`` is the dedup'd count; bind
-    is idempotent so re-clicking the same rank item is a no-op.
-    """
     root = _LIBRARY_ROOT[library]
     show_dir = _find_show_dir(root, tmdb_id)
     if show_dir is None:

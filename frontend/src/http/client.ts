@@ -30,3 +30,44 @@ export async function httpPost<T>(
         return {success: false};
     }
 }
+
+/**
+ * Open an SSE stream to `url` and resolve when the server sends a `result`
+ * event. Returns the same `ApiResult<T>` shape as `httpGet` so callers and
+ * the `once()` memoisation helper need no changes.
+ *
+ * The server sends `: heartbeat` comments every ~10 s while computing, which
+ * prevents proxy / browser timeouts without any client-side polling.
+ */
+export function httpGetSSE<T>(url: string): Promise<ApiResult<T>> {
+    return new Promise((resolve) => {
+        const es = new EventSource(url);
+        let resolved = false;
+
+        const done = (result: ApiResult<T>) => {
+            if (!resolved) {
+                resolved = true;
+                es.close();
+                resolve(result);
+            }
+        };
+
+        es.addEventListener("result", (e: MessageEvent) => {
+            try {
+                done({success: true, data: JSON.parse(e.data) as T});
+            } catch {
+                done({success: false});
+            }
+        });
+
+        es.addEventListener("error", (e: MessageEvent) => {
+            // Custom "error" event from the server (upstream unavailable etc.)
+            done({success: false});
+        });
+
+        es.onerror = () => {
+            // Connection-level error (server unreachable, stream closed unexpectedly)
+            done({success: false});
+        };
+    });
+}

@@ -4,19 +4,18 @@ from datetime import datetime
 from typing import Optional
 
 from core import conf
-from core.http import http_get_with_cache
+from core.http import async_http_get_with_cache
 from tvshow.models import Rate, TmdbEpisode, TmdbSeason, TmdbTvShow
 
 
-def get_tmdb_tv_show(tv_show_id: int, cache: bool = True) -> Optional[TmdbTvShow]:
+async def get_tmdb_tv_show(tv_show_id: int, cache: bool = True) -> Optional[TmdbTvShow]:
     url = (
         f"https://api.themoviedb.org/3/tv/{tv_show_id}"
         f"?api_key={conf.TMDB_API_KEY}&language=zh-CN"
     )
-    res = http_get_with_cache(
+    res = await async_http_get_with_cache(
         url,
         cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
-        sleep_s=0.2,
         need_cache=cache,
         retry=True,
     )
@@ -64,17 +63,16 @@ def get_tmdb_tv_show(tv_show_id: int, cache: bool = True) -> Optional[TmdbTvShow
     )
 
 
-def get_tmdb_tv_show_season(
+async def get_tmdb_tv_show_season(
     tv_show_id: int, season_num: int, cache: bool = True
 ) -> Optional[TmdbSeason]:
     url = (
         f"https://api.themoviedb.org/3/tv/{tv_show_id}/season/{season_num}"
         f"?api_key={conf.TMDB_API_KEY}&language=zh-CN"
     )
-    res = http_get_with_cache(
+    res = await async_http_get_with_cache(
         url,
         cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
-        sleep_s=0.2,
         need_cache=cache,
         retry=True,
     )

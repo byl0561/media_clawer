@@ -1,39 +1,39 @@
 """Tamper-proof tokens for local-only items that lack a public unique key.
 
-LocalAlbum / LocalBook don't carry a TMDB / Douban / Bangumi ID, so any
-"identify this local item" round-trip with the frontend would otherwise have
-to send the on-disk path and trust it comes back unmodified. Django's signing
-machinery seals the path with ``SECRET_KEY``: the frontend echoes the token
-back as-is and :func:`decode_local_path` either returns the original path or
-raises ``ValueError`` (caller treats as 404).
-
-We deliberately use a plain ``Signer`` rather than ``TimestampSigner`` —
-tokens here describe stable on-disk locations, and a user might open a bind
-dialog, walk away, and submit hours later. There's no replay risk because
-the action is idempotent (alias append-dedup) and authorisation lives at the
-endpoint layer, not the token.
+Uses HMAC-SHA256 (Python stdlib only) instead of Django's signing machinery.
+The token format is ``<path>:<hex-hmac>`` — URL-safe because paths never
+contain colons and the HMAC is hex. The key comes from the ``SECRET_KEY``
+environment variable (same variable as the old Django setting).
 """
-from django.core.signing import BadSignature, Signer
+import hashlib
+import hmac
+import os
 
-# Salt scopes the signature to this use-case so the same token can't be reused
-# (or accidentally accepted) by any other Signer in the project.
-_SIGNER = Signer(salt="media_crawler.local_path")
+_SECRET = os.environ.get("SECRET_KEY", "media-crawler-insecure-default").encode()
+_SALT = b"media_crawler.local_path"
+_SEP = ":"
+
+
+def _sign(path: str) -> str:
+    digest = hmac.new(_SECRET, _SALT + path.encode(), hashlib.sha256).hexdigest()
+    return f"{path}{_SEP}{digest}"
 
 
 def encode_local_path(path: str) -> str:
     """Sign ``path`` into a URL-safe token. Idempotent for a given SECRET_KEY."""
-    return _SIGNER.sign(path)
+    return _sign(path)
 
 
 def decode_local_path(token: str) -> str:
     """Verify and unwrap a token previously produced by :func:`encode_local_path`.
 
-    Raises :class:`ValueError` when the signature is missing, malformed, or
-    keyed under a different ``SECRET_KEY`` (e.g. after key rotation). Callers
-    should translate this to a 404 — the binding is unrecoverable, the user
-    just reopens the dialog to get a fresh token.
+    Raises :class:`ValueError` on tampered or malformed tokens.
     """
-    try:
-        return _SIGNER.unsign(token)
-    except BadSignature as exc:
-        raise ValueError("invalid local id") from exc
+    if _SEP not in token:
+        raise ValueError("invalid local id")
+    last_sep = token.rfind(_SEP)
+    path = token[:last_sep]
+    expected = _sign(path)
+    if not hmac.compare_digest(token, expected):
+        raise ValueError("invalid local id")
+    return path
