@@ -23,58 +23,63 @@
                          │              Docker 容器 (:8080)             │
    浏览器                 │                                              │
    ──────►  Nginx :8080 ──┼─►  /            静态资源 (Vue 构建产物)        │
-            (剥离 /api/)   │   /api/v1/  ──► gunicorn → Django :8000      │
+            (剥离 /api/)   │   /api/v1/  ──► uvicorn → FastAPI :8000     │
                          │                    │                         │
                          │                    ├─► 豆瓣 / Bangumi 抓取     │
                          │                    ├─► TMDB API（带限速重试）   │
                          │                    ├─► 扫描 /Volumes/* 本地库   │
                          │                    └─► Redis（上游响应缓存）     │
-                         │                django-crontab 每周预热上游缓存   │
+                         │                APScheduler 每周预热上游缓存      │
                          └─────────────────────────────────────────────┘
 ```
 
-整个应用打包为**单个 Docker 镜像**。Nginx 托管前端静态资源，并把 `/api/` 反向代理到 gunicorn 上的 Django（代理时剥离 `/api/` 前缀，故 Django 实际匹配 `v1/...`）。Nginx 启用 SPA history 回退（`try_files … /index.html`），并把 `/api/` 反代超时对齐到 300s（与 gunicorn `--timeout`、前端 axios 一致）。
+整个应用打包为**单个 Docker 镜像**。Nginx 托管前端静态资源，并把 `/api/` 反向代理到 uvicorn 上的 FastAPI（代理时剥离 `/api/` 前缀，故 FastAPI 实际匹配 `v1/...`）。Nginx 启用 SPA history 回退（`try_files … /index.html`），并把 `/api/` 反代超时对齐到 300s。
 
-### 后端（`backend/`，Django 4.2 + DRF / Python 3.9）
+### 后端（`backend/`，FastAPI / Python 3.9）
 
-- **`core/` 共享包**：`conf`（配置单一来源）、`http`（带 Redis 缓存的 GET；TMDB 专用有界重试，识别 429/瞬时错误，遵循 `Retry-After`，指数退避）、`scanning`（多进程扫库，卷缺失即返回空而非崩溃）、`images`（路径穿越安全的图片流式响应）、`matching`（通用模糊比对内核）、`exceptions`、`serializers`、`cron`。
-- **4 个轻应用** `movie / tvshow / music / book`，结构统一：`models.py`（纯数据类）、`crawlers/`（douban/tmdb/bangumi/local）、`matching.py`、`services.py`（业务编排）、`serializers.py`（DRF）、`views.py`（DRF `APIView`）、`cron.py`。动漫由 `tvshow` 应用对 anime 库提供。
+- **`core/` 共享包**：`conf`（配置单一来源）、`http`（带 Redis 缓存的异步 GET；TMDB 专用有界重试，识别 429/瞬时错误，遵循 `Retry-After`，指数退避）、`scanning`（多进程扫库，卷缺失即返回空而非崩溃）、`images`（路径穿越安全的图片流式响应）、`matching`（通用模糊比对内核）、`exceptions`、`progress`（SSE 进度队列）、`cron`。
+- **4 个轻模块** `movie / tvshow / music / book`，结构统一：`models.py`（纯数据类）、`crawlers/`（douban/tmdb/bangumi/local）、`matching.py`、`services.py`（业务编排，全 async）。动漫由 `tvshow` 模块对 anime 库提供。
+- **SSE 流式响应**：所有较慢的 GET 接口（diff、series-gaps、subtitle-gaps、lyric-gaps）返回 `text/event-stream`，实时推送 `progress` 事件（含步骤文字与百分比），最终以 `result` 事件交付数据；前端在加载时显示进度条。
 - **无数据库**：不使用 ORM、无 migrations，数据全部实时抓取。
-- **OpenAPI**：drf-spectacular 自动生成 schema 与 Swagger UI。
+- **OpenAPI**：FastAPI 自动生成，访问 `/api/v1/docs`（Swagger UI）或 `/api/v1/redoc`。
 
 ### 缓存与时效（重要）
 
 - **diff 结果不缓存**，每次请求实时重算（重新扫 NAS + 重新比对）。
 - **上游响应缓存**：豆瓣 HTML / Bangumi / TMDB JSON 缓存于 Redis，默认 **8 天**（`SOURCE_CACHE_TTL_MINUTES`，大于每周 cron 间隔，保证两次预热之间不过期）。
-- **cron 每周预热**上游缓存，使正常请求始终命中缓存、不实时抓站。
-- 上游抓取整体失败（列表为空）时返回 **HTTP 503**，而非把整库误判为「过时」。
+- **APScheduler 每周预热**上游缓存，使正常请求始终命中缓存、不实时抓站。
+- 上游抓取整体失败（列表为空）时 SSE 以 `error` 事件返回，前端显示「加载失败」，而非把整库误判为「过时」。
 - 因此榜单数据最长约有一周滞后——这是「请求不阻塞」的取舍。
 
 ### 前端（`frontend/`，Vue 3 + TypeScript + Vite + Tailwind）
 
 - **路由**（vue-router，history 模式）：`/` 为库维护概览（各媒体类型汇总卡，显示缺口计数）；`/library/:type` 为该类型的分段标签（最新 / 续集 / 过时，带计数）+ 响应式海报网格。桌面与移动端自适应。
 - **状态**：`stores/mediaCatalog` 单例复用各媒体 hook 的记忆化加载，概览页与详情页共享同一请求；点「刷新」统一失效重拉。
+- **SSE 进度**：加载中状态显示步骤文字 + 动画进度条，概览卡片与详情页均支持。
 - 暗色靛紫设计令牌（Tailwind），骨架 / 空 / 错误态；每个 diff 每次加载只请求一次，由相关标签页复用同一响应。
 
 ## API 接口
 
-RESTful、带版本前缀。下表为浏览器侧路径（经 Nginx）：
+RESTful、带版本前缀。下表为浏览器侧路径（经 Nginx）。标注 SSE 的接口返回 `text/event-stream`，其余为 JSON。
 
 | 方法 | 路径 | 响应 |
 | ---- | ---- | ---- |
-| GET | `/api/v1/movies/diff` | `{ missing: [], extra: [] }` |
-| GET | `/api/v1/movies/collection-gaps` | `[{ collection, missing: [] }]` |
-| GET | `/api/v1/tv-shows/diff` | `{ missing, extra }` |
-| GET | `/api/v1/tv-shows/local-gaps` | `[{ show, missing_seasons, incomplete_seasons }]` |
-| GET | `/api/v1/anime/diff` | `{ missing, extra }` |
-| GET | `/api/v1/anime/local-gaps` | `[{ show, missing_seasons, incomplete_seasons }]` |
-| GET | `/api/v1/albums/diff` | `{ missing, extra }` |
-| GET | `/api/v1/books/diff` | `{ missing, extra }` |
+| GET | `/api/v1/movies/diff` | SSE → `{ missing: [], extra: [] }` |
+| GET | `/api/v1/movies/series-gaps` | SSE → `[{ collection, missing: [] }]` |
+| GET | `/api/v1/movies/subtitle-gaps` | SSE → `[{ title, ... }]` |
+| GET | `/api/v1/tv-shows/diff` | SSE → `{ missing, extra }` |
+| GET | `/api/v1/tv-shows/series-gaps` | SSE → `[{ show, missing_seasons, incomplete_seasons }]` |
+| GET | `/api/v1/tv-shows/subtitle-gaps` | SSE → `[{ show, seasons }]` |
+| GET | `/api/v1/anime/diff` | SSE → `{ missing, extra }` |
+| GET | `/api/v1/anime/series-gaps` | SSE → `[{ show, missing_seasons, incomplete_seasons }]` |
+| GET | `/api/v1/anime/subtitle-gaps` | SSE → `[{ show, seasons }]` |
+| GET | `/api/v1/albums/diff` | SSE → `{ missing, extra }` |
+| GET | `/api/v1/albums/lyric-gaps` | SSE → `[{ title, artist, ... }]` |
+| GET | `/api/v1/books/diff` | SSE → `{ missing, extra }` |
 | GET | `/api/v1/{movies,tv-shows,anime}/poster/<path>`、`/api/v1/{albums,books}/cover/<path>` | 本地海报/封面图片流 |
-| GET | `/api/v1/schema/` | OpenAPI schema |
-| GET | `/api/v1/docs/` | Swagger UI |
+| GET | `/api/v1/docs` | Swagger UI（FastAPI 自动生成） |
 
-> `local-gaps` 合并了原「缺少的季」与「缺少的集」：`missing_seasons` 为整季缺失，`incomplete_seasons` 为已有但集数落后。
+> `series-gaps`（TV/动漫）合并了「缺少的季」与「缺少的集」：`missing_seasons` 为整季缺失，`incomplete_seasons` 为已有但集数落后。
 
 ## 本地媒体规范
 
@@ -109,15 +114,13 @@ docker run -d -p 8080:8080 \
   media-crawler
 ```
 
-访问 `http://<host>:8080`，接口文档 `http://<host>:8080/api/v1/docs/`。
+访问 `http://<host>:8080`，接口文档 `http://<host>:8080/api/v1/docs`。
 
 ### 环境变量
 
 | 变量 | 说明 | 默认值 |
 | ---- | ---- | ---- |
-| `DEBUG` | 是否 debug 模式（值为 `true` 时开启，大小写不敏感） | `false` |
-| `DJANGO_SECRET_KEY` | Django 密钥，生产环境务必覆盖 | 内置不安全默认值 |
-| `ALLOWED_HOSTS` | 允许的 Host，逗号分隔 | `*` |
+| `APP_USERNAME` / `APP_PASSWORD` | 开启 HTTP Basic Auth（设置 `APP_PASSWORD` 即启用，`APP_USERNAME` 默认 `admin`） | 非必需 |
 | `REDIS_HOST` | Redis IP | （必填，用于缓存） |
 | `REDIS_PORT` | Redis 端口 | `6379` |
 | `REDIS_PASS` | Redis 密码 | 空 |
@@ -129,8 +132,7 @@ docker run -d -p 8080:8080 \
 | `SCAN_WORKERS` | 扫库进程数 | `min(8, CPU)` |
 | `TMDB_MAX_RETRIES` | TMDB 限速/瞬时错误额外重试次数 | `3` |
 | `SOURCE_CACHE_TTL_MINUTES` | 上游响应缓存时长（分钟） | `11520`（8 天） |
-| `GUNICORN_WORKERS` | gunicorn worker 数 | `3` |
-| `GUNICORN_TIMEOUT` | gunicorn 请求超时（秒） | `300` |
+| `UVICORN_WORKERS` | uvicorn worker 数 | `1` |
 
 ### 挂载目录
 
@@ -144,7 +146,7 @@ docker run -d -p 8080:8080 \
 
 ### 定时刷新
 
-容器内 cron 每周凌晨 4:30 预热各类上游缓存：图书（周一）、电影（周二）、音乐（周三）、电视剧/动漫（周四），配置见 `settings.py` 的 `CRONJOBS`。
+容器内 APScheduler 每周凌晨 4:30 预热各类上游缓存：图书（周一）、电影（周二）、音乐（周三）、电视剧/动漫（周四），配置见 `backend/scheduler.py`。
 
 ## 本地开发
 
@@ -155,7 +157,7 @@ cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 # 需可访问 Redis
-gunicorn mediacrawler.wsgi:application --bind 0.0.0.0:8000   # 或 python manage.py runserver
+uvicorn main:app --reload --port 8000
 ```
 
 前端：
@@ -169,9 +171,9 @@ npm run build     # 生产构建（含 type-check），产物在 dist/
 
 ## 技术栈
 
-- **后端**：Django 4.2、Django REST Framework、drf-spectacular、Python 3.9、requests、BeautifulSoup4 / lxml、django-redis、django-crontab、gunicorn
+- **后端**：FastAPI、Python 3.9、httpx、APScheduler、BeautifulSoup4 / lxml、redis-py、mutagen、uvicorn
 - **前端**：Vue 3、TypeScript、Vite、vue-router、Tailwind CSS、axios
-- **部署**：多阶段 Docker（Node 18 构建前端 + python:3.9-slim 运行）、Nginx、gunicorn、Redis
+- **部署**：多阶段 Docker（Node 18 构建前端 + python:3.9-slim 运行）、Nginx、uvicorn、Redis
 
 ## License
 

@@ -43,7 +43,7 @@ export function useOverviewData(): {
 
     async function loadEntry(
         entry: CatalogEntry,
-        onStep?: (step: string) => void,
+        onStep?: (step: string, pct: number) => void,
     ): Promise<CardState> {
         const tabs = entry.group.mediaItemFunctionGroups;
         const results = await Promise.all(

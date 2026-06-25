@@ -42,7 +42,7 @@ const BIND_SEGMENT: Record<BindLibrary, string> = {
 
 // --- SSE-backed slow endpoints (no timeout risk) ------------------------
 
-type OnProgress = (step: string) => void;
+type OnProgress = (step: string, pct: number) => void;
 
 export const diffMovie = (p?: OnProgress) => httpGetSSE<Diff<MovieItem>>(`${V1}/movies/diff`, p);
 export const movieSeriesGaps = (p?: OnProgress) => httpGetSSE<MovieSeriesGap[]>(`${V1}/movies/series-gaps`, p);
