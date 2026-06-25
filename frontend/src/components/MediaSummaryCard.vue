@@ -6,6 +6,7 @@ import type {CardCount} from "@/hooks/useOverviewData";
 const props = defineProps<{
   entry: CatalogEntry;
   status: "loading" | "ok" | "error";
+  step: string;
   counts: CardCount[];
 }>()
 
@@ -58,15 +59,18 @@ const synced = computed(
       >→</span>
     </div>
 
-    <div v-if="status === 'loading'" class="flex" aria-hidden="true">
-      <div
-        v-for="i in tabCount"
-        :key="i"
-        class="flex flex-1 flex-col items-center gap-2"
-      >
-        <div class="skeleton h-9 w-12 rounded"></div>
-        <div class="skeleton h-3 w-8 rounded"></div>
+    <div v-if="status === 'loading'" class="flex flex-col gap-2">
+      <div class="flex" aria-hidden="true">
+        <div
+          v-for="i in tabCount"
+          :key="i"
+          class="flex flex-1 flex-col items-center gap-2"
+        >
+          <div class="skeleton h-9 w-12 rounded"></div>
+          <div class="skeleton h-3 w-8 rounded"></div>
+        </div>
       </div>
+      <p class="truncate text-xs text-muted">{{ step || "加载中" }}</p>
     </div>
 
     <p v-else-if="status === 'error'" class="text-sm text-danger">数据加载失败</p>

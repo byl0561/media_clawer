@@ -56,6 +56,7 @@ const stats = computed(() => [
         :key="card.entry.key"
         :entry="card.entry"
         :status="card.status"
+        :step="card.step"
         :counts="card.counts"
       />
     </div>

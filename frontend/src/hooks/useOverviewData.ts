@@ -18,6 +18,7 @@ export interface CardCount {
 export interface CardState {
     entry: CatalogEntry;
     status: "loading" | "ok" | "error";
+    step: string;
     counts: CardCount[];
 }
 
@@ -39,7 +40,10 @@ export function useOverviewData(): {
     const catalog = useMediaCatalog();
     const cards = ref<CardState[]>([]);
 
-    async function loadEntry(entry: CatalogEntry): Promise<CardState> {
+    async function loadEntry(
+        entry: CatalogEntry,
+        onStep?: (step: string) => void,
+    ): Promise<CardState> {
         const tabs = entry.group.mediaItemFunctionGroups;
         const results = await Promise.all(
             tabs.map((tab) => {
@@ -47,13 +51,13 @@ export function useOverviewData(): {
                 // returns the legacy flat items group. Reduce both to a count.
                 if (tab.acquireSeries) {
                     return tab
-                        .acquireSeries()
+                        .acquireSeries(onStep)
                         .then((d) => (d.valid ? d.rows.length : null))
                         .catch(() => null);
                 }
                 if (tab.acquireData) {
                     return tab
-                        .acquireData()
+                        .acquireData(onStep)
                         .then((d) => (d.valid ? d.mediaItems.length : null))
                         .catch(() => null);
                 }
@@ -67,7 +71,7 @@ export function useOverviewData(): {
             value: results[i],
         }));
         const status = results.every((r) => r == null) ? "error" : "ok";
-        return {entry, status, counts};
+        return {entry, status, step: "", counts};
     }
 
     async function load(): Promise<void> {
@@ -75,13 +79,19 @@ export function useOverviewData(): {
         cards.value = list.map((entry) => ({
             entry,
             status: "loading",
+            step: "",
             counts: [],
         }));
         // Resolve each card independently so they fill in progressively;
         // reassigning the array (not mutating an index) keeps it reactive.
         await Promise.all(
             list.map(async (entry, i) => {
-                const next = await loadEntry(entry);
+                const onStep = (step: string) => {
+                    if (cards.value[i]?.status === "loading") {
+                        cards.value[i].step = step;
+                    }
+                };
+                const next = await loadEntry(entry, onStep);
                 const copy = cards.value.slice();
                 copy[i] = next;
                 cards.value = copy;
