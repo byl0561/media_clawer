@@ -86,8 +86,8 @@ export interface MediaItemFunctionGroup {
     name: string;
     /** Optional display label used by the Overview cards. Defaults to ``name``. */
     overviewLabel?: string;
-    acquireData?: () => Promise<MediaItemGroupData>;
-    acquireSeries?: () => Promise<SeriesGroupData>;
+    acquireData?: (onProgress?: (step: string) => void) => Promise<MediaItemGroupData>;
+    acquireSeries?: (onProgress?: (step: string) => void) => Promise<SeriesGroupData>;
 }
 
 export interface MediaGroup {

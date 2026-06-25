@@ -8,8 +8,8 @@ export default function useBook(): MediaGroup {
     return {
         name: "书籍",
         mediaItemFunctionGroups: [
-            {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing, "book")},
-            {name: "过时", acquireData: () => buildGroup(loadDiff, (d) => d.extra)},
+            {name: "最新", acquireData: (p) => buildGroup(loadDiff, (d) => d.missing, "book", p)},
+            {name: "过时", acquireData: (p) => buildGroup(loadDiff, (d) => d.extra, undefined, p)},
         ],
     };
 }

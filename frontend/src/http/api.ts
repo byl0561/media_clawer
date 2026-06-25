@@ -42,22 +42,24 @@ const BIND_SEGMENT: Record<BindLibrary, string> = {
 
 // --- SSE-backed slow endpoints (no timeout risk) ------------------------
 
-export const diffMovie = () => httpGetSSE<Diff<MovieItem>>(`${V1}/movies/diff`);
-export const movieSeriesGaps = () => httpGetSSE<MovieSeriesGap[]>(`${V1}/movies/series-gaps`);
-export const movieSubtitleGaps = () => httpGetSSE<MovieItem[]>(`${V1}/movies/subtitle-gaps`);
+type OnProgress = (step: string) => void;
 
-export const diffTV = () => httpGetSSE<Diff<ShowItem>>(`${V1}/tv-shows/diff`);
-export const tvSeriesGaps = () => httpGetSSE<ShowSeriesGap[]>(`${V1}/tv-shows/series-gaps`);
-export const tvSubtitleGaps = () => httpGetSSE<SubtitleShowGap[]>(`${V1}/tv-shows/subtitle-gaps`);
+export const diffMovie = (p?: OnProgress) => httpGetSSE<Diff<MovieItem>>(`${V1}/movies/diff`, p);
+export const movieSeriesGaps = (p?: OnProgress) => httpGetSSE<MovieSeriesGap[]>(`${V1}/movies/series-gaps`, p);
+export const movieSubtitleGaps = (p?: OnProgress) => httpGetSSE<MovieItem[]>(`${V1}/movies/subtitle-gaps`, p);
 
-export const diffAnime = () => httpGetSSE<Diff<ShowItem>>(`${V1}/anime/diff`);
-export const animeSeriesGaps = () => httpGetSSE<ShowSeriesGap[]>(`${V1}/anime/series-gaps`);
-export const animeSubtitleGaps = () => httpGetSSE<SubtitleShowGap[]>(`${V1}/anime/subtitle-gaps`);
+export const diffTV = (p?: OnProgress) => httpGetSSE<Diff<ShowItem>>(`${V1}/tv-shows/diff`, p);
+export const tvSeriesGaps = (p?: OnProgress) => httpGetSSE<ShowSeriesGap[]>(`${V1}/tv-shows/series-gaps`, p);
+export const tvSubtitleGaps = (p?: OnProgress) => httpGetSSE<SubtitleShowGap[]>(`${V1}/tv-shows/subtitle-gaps`, p);
 
-export const diffAlbum = () => httpGetSSE<Diff<AlbumItem>>(`${V1}/albums/diff`);
-export const albumLyricGaps = () => httpGetSSE<AlbumLyricGap[]>(`${V1}/albums/lyric-gaps`);
+export const diffAnime = (p?: OnProgress) => httpGetSSE<Diff<ShowItem>>(`${V1}/anime/diff`, p);
+export const animeSeriesGaps = (p?: OnProgress) => httpGetSSE<ShowSeriesGap[]>(`${V1}/anime/series-gaps`, p);
+export const animeSubtitleGaps = (p?: OnProgress) => httpGetSSE<SubtitleShowGap[]>(`${V1}/anime/subtitle-gaps`, p);
 
-export const diffBook = () => httpGetSSE<Diff<BookItem>>(`${V1}/books/diff`);
+export const diffAlbum = (p?: OnProgress) => httpGetSSE<Diff<AlbumItem>>(`${V1}/albums/diff`, p);
+export const albumLyricGaps = (p?: OnProgress) => httpGetSSE<AlbumLyricGap[]>(`${V1}/albums/lyric-gaps`, p);
+
+export const diffBook = (p?: OnProgress) => httpGetSSE<Diff<BookItem>>(`${V1}/books/diff`, p);
 
 // --- Fast JSON endpoints (plain httpGet / httpPost) ----------------------
 

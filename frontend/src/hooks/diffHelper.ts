@@ -13,7 +13,8 @@ import type {
     SubtitleShowGap,
 } from "@/types/api";
 
-export type Loader<T> = () => Promise<ApiResult<T>>;
+type OnProgress = (step: string) => void;
+export type Loader<T> = (onProgress?: OnProgress) => Promise<ApiResult<T>>;
 
 /** Map a server media object to the UI's MediaItem shape. */
 export function toMedia(item: MediaItemDTO): MediaItem {
@@ -27,8 +28,8 @@ export function toMedia(item: MediaItemDTO): MediaItem {
  */
 export function once<T>(load: Loader<T>): Loader<T> {
     let cached: Promise<ApiResult<T>> | null = null;
-    return () => {
-        if (!cached) cached = load();
+    return (onProgress) => {
+        if (!cached) cached = load(onProgress);
         return cached;
     };
 }
@@ -36,9 +37,10 @@ export function once<T>(load: Loader<T>): Loader<T> {
 async function collect<T>(
     load: Loader<T>,
     fill: (data: T, items: MediaItem[]) => void,
+    onProgress?: OnProgress,
 ): Promise<MediaItemGroupData> {
     const group: MediaItemGroupData = {valid: true, mediaItems: []};
-    const res = await load();
+    const res = await load(onProgress);
     if (!res.success) {
         group.valid = false;
         return group;
@@ -58,6 +60,7 @@ export function buildGroup<T>(
     load: Loader<T>,
     pick: (data: T) => MediaItemDTO[],
     bindLibrary?: BindLibrary,
+    onProgress?: OnProgress,
 ): Promise<MediaItemGroupData> {
     return collect(load, (data, items) => {
         for (const item of pick(data)) {
@@ -67,7 +70,7 @@ export function buildGroup<T>(
             }
             items.push(media);
         }
-    });
+    }, onProgress);
 }
 
 // --- 续集 tab builders --------------------------------------------------
@@ -117,7 +120,10 @@ function incompletePoster(
 }
 
 /** Movie collection → SeriesRow. */
-export function buildMovieSeries(load: Loader<MovieSeriesGap[]>): Promise<SeriesGroupData> {
+export function buildMovieSeries(
+    load: Loader<MovieSeriesGap[]>,
+    onProgress?: OnProgress,
+): Promise<SeriesGroupData> {
     return collectSeries(load, (gaps) =>
         gaps.map((gap) => ({
             title: gap.collection_name ?? `合集 ${gap.collection_id}`,
@@ -128,6 +134,7 @@ export function buildMovieSeries(load: Loader<MovieSeriesGap[]>): Promise<Series
             missing: gap.missing.map(moviePoster),
             ignoreCollection: {collectionId: gap.collection_id},
         })),
+        onProgress,
     );
 }
 
@@ -135,6 +142,7 @@ export function buildMovieSeries(load: Loader<MovieSeriesGap[]>): Promise<Series
 export function buildShowSeries(
     load: Loader<ShowSeriesGap[]>,
     library: IgnoreLibrary,
+    onProgress?: OnProgress,
 ): Promise<SeriesGroupData> {
     return collectSeries(load, (gaps) =>
         gaps.map((gap) => {
@@ -153,15 +161,17 @@ export function buildShowSeries(
                 missing,
             };
         }),
+        onProgress,
     );
 }
 
 async function collectSeries<T>(
     load: Loader<T>,
     rows: (data: T) => SeriesRow[],
+    onProgress?: OnProgress,
 ): Promise<SeriesGroupData> {
     const group: SeriesGroupData = {valid: true, rows: []};
-    const res = await load();
+    const res = await load(onProgress);
     if (!res.success) {
         group.valid = false;
         return group;
@@ -177,6 +187,7 @@ async function collectSeries<T>(
  *  `ignoreSubtitle` ref that triggers the per-poster confirm dialog. */
 export function buildMovieSubtitleGroup(
     load: Loader<MovieItem[]>,
+    onProgress?: OnProgress,
 ): Promise<MediaItemGroupData> {
     return collect(load, (movies, items) => {
         for (const m of movies) {
@@ -191,13 +202,14 @@ export function buildMovieSubtitleGroup(
             }
             items.push(media);
         }
-    });
+    }, onProgress);
 }
 
 /** Flat list of local albums whose tracks lack lyrics. Each tile carries an
  *  `ignoreLyric` ref keyed by signed path token. */
 export function buildAlbumLyricGroup(
     load: Loader<AlbumLyricGap[]>,
+    onProgress?: OnProgress,
 ): Promise<MediaItemGroupData> {
     return collect(load, (albums, items) => {
         for (const a of albums) {
@@ -209,7 +221,7 @@ export function buildAlbumLyricGroup(
                 ignoreLyric: {token: a.token},
             });
         }
-    });
+    }, onProgress);
 }
 
 /** TV/anime subtitle gap → SeriesRow with empty local (flat right-grid only).
@@ -217,6 +229,7 @@ export function buildAlbumLyricGroup(
 export function buildShowSubtitleSeries(
     load: Loader<SubtitleShowGap[]>,
     library: IgnoreLibrary,
+    onProgress?: OnProgress,
 ): Promise<SeriesGroupData> {
     return collectSeries(load, (gaps) =>
         gaps.map((gap) => {
@@ -246,5 +259,6 @@ export function buildShowSubtitleSeries(
                 missing: tiles,
             };
         }),
+        onProgress,
     );
 }

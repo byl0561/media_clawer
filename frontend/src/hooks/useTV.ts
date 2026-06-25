@@ -17,13 +17,13 @@ export default function useTV(): MediaGroup {
     return {
         name: "电视剧",
         mediaItemFunctionGroups: [
-            {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing, "tv")},
-            {name: "续集", acquireSeries: () => buildShowSeries(loadSeries, "tv")},
-            {name: "过时", acquireData: () => buildGroup(loadDiff, (d) => d.extra)},
+            {name: "最新", acquireData: (p) => buildGroup(loadDiff, (d) => d.missing, "tv", p)},
+            {name: "续集", acquireSeries: (p) => buildShowSeries(loadSeries, "tv", p)},
+            {name: "过时", acquireData: (p) => buildGroup(loadDiff, (d) => d.extra, undefined, p)},
             {
                 name: "字幕",
                 overviewLabel: "缺失字幕",
-                acquireSeries: () => buildShowSubtitleSeries(loadSubtitle, "tv"),
+                acquireSeries: (p) => buildShowSubtitleSeries(loadSubtitle, "tv", p),
             },
         ],
     };

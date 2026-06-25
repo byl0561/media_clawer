@@ -17,13 +17,13 @@ export default function useAnime(): MediaGroup {
     return {
         name: "动漫",
         mediaItemFunctionGroups: [
-            {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing, "anime")},
-            {name: "续集", acquireSeries: () => buildShowSeries(loadSeries, "anime")},
-            {name: "过时", acquireData: () => buildGroup(loadDiff, (d) => d.extra)},
+            {name: "最新", acquireData: (p) => buildGroup(loadDiff, (d) => d.missing, "anime", p)},
+            {name: "续集", acquireSeries: (p) => buildShowSeries(loadSeries, "anime", p)},
+            {name: "过时", acquireData: (p) => buildGroup(loadDiff, (d) => d.extra, undefined, p)},
             {
                 name: "字幕",
                 overviewLabel: "缺失字幕",
-                acquireSeries: () => buildShowSubtitleSeries(loadSubtitle, "anime"),
+                acquireSeries: (p) => buildShowSubtitleSeries(loadSubtitle, "anime", p),
             },
         ],
     };

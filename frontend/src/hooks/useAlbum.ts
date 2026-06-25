@@ -9,12 +9,12 @@ export default function useAlbum(): MediaGroup {
     return {
         name: "专辑",
         mediaItemFunctionGroups: [
-            {name: "最新", acquireData: () => buildGroup(loadDiff, (d) => d.missing, "album")},
-            {name: "过时", acquireData: () => buildGroup(loadDiff, (d) => d.extra)},
+            {name: "最新", acquireData: (p) => buildGroup(loadDiff, (d) => d.missing, "album", p)},
+            {name: "过时", acquireData: (p) => buildGroup(loadDiff, (d) => d.extra, undefined, p)},
             {
                 name: "歌词",
                 overviewLabel: "缺失歌词",
-                acquireData: () => buildAlbumLyricGroup(loadLyric),
+                acquireData: (p) => buildAlbumLyricGroup(loadLyric, p),
             },
         ],
     };

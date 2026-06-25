@@ -39,7 +39,10 @@ export async function httpPost<T>(
  * The server sends `: heartbeat` comments every ~10 s while computing, which
  * prevents proxy / browser timeouts without any client-side polling.
  */
-export function httpGetSSE<T>(url: string): Promise<ApiResult<T>> {
+export function httpGetSSE<T>(
+    url: string,
+    onProgress?: (step: string) => void,
+): Promise<ApiResult<T>> {
     return new Promise((resolve) => {
         const es = new EventSource(url);
         let resolved = false;
@@ -51,6 +54,14 @@ export function httpGetSSE<T>(url: string): Promise<ApiResult<T>> {
                 resolve(result);
             }
         };
+
+        es.addEventListener("progress", (e: MessageEvent) => {
+            if (!onProgress) return;
+            try {
+                const d = JSON.parse((e as MessageEvent).data);
+                if (d?.step) onProgress(d.step);
+            } catch {}
+        });
 
         es.addEventListener("result", (e: MessageEvent) => {
             try {
