@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {useMediaCatalog} from "@/stores/mediaCatalog";
+import AppLogo from "@/components/AppLogo.vue";
 
 const {entries, refresh, refreshing} = useMediaCatalog()
 </script>
@@ -12,7 +13,9 @@ const {entries, refresh, refreshing} = useMediaCatalog()
         aria-label="MediaGap 首页"
         class="flex shrink-0 items-center gap-2 rounded-lg font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
-        <span class="grid h-8 w-8 place-items-center rounded-lg bg-accent text-white" aria-hidden="true">◆</span>
+        <span class="grid h-8 w-8 place-items-center rounded-lg bg-accent p-1" aria-hidden="true">
+          <AppLogo />
+        </span>
         <span class="hidden text-content sm:inline">MediaGap</span>
       </RouterLink>
 
