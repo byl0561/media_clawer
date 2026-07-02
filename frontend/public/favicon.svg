@@ -1,23 +1,32 @@
-<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#9D8DF8"/>
-      <stop offset="100%" stop-color="#5A47C4"/>
+      <stop offset="100%" stop-color="#5847C8"/>
     </linearGradient>
+    <!-- 左上角细微高光，增加玻璃质感 -->
+    <radialGradient id="shine" cx="30%" cy="18%" r="55%">
+      <stop offset="0%" stop-color="white" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </radialGradient>
   </defs>
+
   <!-- 背景 -->
-  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
-  <!-- 顶部内发光 -->
-  <rect width="32" height="32" rx="7" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1"/>
-  <!-- 已有媒体卡（实心）-->
-  <rect x="2.5" y="6" width="11" height="20" rx="2.5" fill="white" opacity="0.92"/>
-  <!-- 卡内内容线 -->
-  <line x1="5" y1="12" x2="11.5" y2="12" stroke="#7C6FE8" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="5" y1="15.5" x2="9.5" y2="15.5" stroke="#7C6FE8" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- 缺口三点 -->
-  <circle cx="15.5" cy="16" r="1.1" fill="white" opacity="0.5"/>
-  <circle cx="18.5" cy="16" r="1.1" fill="white" opacity="0.5"/>
-  <!-- 缺失媒体卡（虚线轮廓）-->
-  <rect x="21.5" y="6" width="8" height="20" rx="2" stroke="white" stroke-width="1.8"
-    stroke-dasharray="3 2.5" fill="none" opacity="0.55"/>
+  <rect width="36" height="36" rx="8" fill="url(#bg)"/>
+  <!-- 高光层 -->
+  <rect width="36" height="36" rx="8" fill="url(#shine)"/>
+  <!-- 边框内发光 -->
+  <rect width="36" height="36" rx="8" fill="none"
+    stroke="rgba(255,255,255,.14)" stroke-width="1"/>
+
+  <!-- 断口圆弧（同 AppLogo，顶部 80° 缺口） -->
+  <path
+    d="M 27.19,10.28 A 12,12 0 1,1 8.81,10.28"
+    stroke="white" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+
+  <!-- 缺口强调点 -->
+  <circle cx="18" cy="6" r="1.6" fill="white" opacity="0.45"/>
+
+  <!-- 播放三角形 -->
+  <path d="M 13,11 L 26,18 L 13,25 Z" fill="white" opacity="0.92"/>
 </svg>
