@@ -1,18 +1,41 @@
-"""Bangumi anime ranking scraper. Pages are batched concurrently (5 per batch)."""
+"""Bangumi anime ranking scrapers.
+
+Two sources feed the anime diff and are merged by :func:`crawl_bangumi_anime`:
+
+* the ranked browser pages (batched 5 per request round), and
+* curated index lists (``/index/{id}``), whose markup carries neither a
+  rating nor a Chinese title, so every entry is completed through the public
+  subject API.
+
+Both paths end up in the same :func:`check` gate, so the year / airing-delay /
+vote / exclude rules stay identical across sources.
+"""
 import asyncio
+import json
 import re
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import bs4
 
 from core import conf
 from core.http import async_http_get_with_cache
 from core.matching import title_excluded
+from tvshow.matching import combine_tv_show
 from tvshow.models import BangumiTvShow, Rate
 
 _MAX_PAGES = 30
 _BATCH_SIZE = 5
+
+# Curated index lists merged into the ranked browser results.
+_INDEX_URLS = ["https://bangumi.tv/index/55040?cat=2"]
+
+_SUBJECT_API = "https://api.bgm.tv/v0/subjects"
+_SUBJECT_CONCURRENCY = 5
+# Index lists mix films in with TV series. The local anime library is a TV
+# library (scanned from tvshow.nfo), so a film could never match anything and
+# would sit in "missing" forever.
+_EXCLUDED_PLATFORMS = {"剧场版"}
 
 
 def _parse_page(html: str, exclude_titles: List[str]) -> List[BangumiTvShow]:
@@ -111,6 +134,142 @@ async def crawl_bangumi_tv_show_80(
 
     return tv_shows[:80]
 
+
+def _parse_index_page(html: str) -> List[Tuple[int, Optional[str]]]:
+    """Pull ``(subject_id, poster)`` out of an index list page.
+
+    Index markup has no ``rateInfo`` / ``small.grey``, so everything else has
+    to come from the subject API.
+    """
+    entries: List[Tuple[int, Optional[str]]] = []
+    bs = bs4.BeautifulSoup(html, "html.parser")
+    container = bs.find("ul", class_="browserFull")
+    if container is None:
+        return entries
+    for item in container.find_all("li", class_="item"):
+        link = item.find("a", class_="l")
+        if link is None:
+            continue
+        try:
+            subject_id = int(link.get("href").split("/")[-1])
+        except (AttributeError, TypeError, ValueError):
+            continue
+        image = item.find("span", class_="image")
+        img = image.find("img") if image is not None else None
+        src = img.get("src") if img is not None else None
+        entries.append((subject_id, src.strip() if src else None))
+    return entries
+
+
+def _protocol_relative(url: Optional[str]) -> Optional[str]:
+    """BangumiTvShow prepends ``https:`` itself, so hand it a //-relative URL."""
+    if url is None:
+        return None
+    return url[len("https:"):] if url.startswith("https:") else url
+
+
+def _cn_date(iso_date: Optional[str]) -> Optional[str]:
+    """Convert the API's ``2011-04-06`` into the ``2011年4月6日`` the model parses."""
+    if not iso_date:
+        return None
+    try:
+        parsed = datetime.strptime(iso_date, "%Y-%m-%d")
+    except ValueError:
+        return None
+    return f"{parsed.year}年{parsed.month}月{parsed.day}日"
+
+
+async def _fetch_subject(
+    subject_id: int, poster: Optional[str], cache: bool, sem: asyncio.Semaphore
+) -> Optional[BangumiTvShow]:
+    async with sem:
+        raw = await async_http_get_with_cache(
+            f"{_SUBJECT_API}/{subject_id}",
+            headers={"User-Agent": conf.USER_AGENT},
+            cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
+            need_cache=cache,
+        )
+    if raw is None:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+    if data.get("platform") in _EXCLUDED_PLATFORMS:
+        return None
+
+    date = _cn_date(data.get("date"))
+    if date is None:
+        return None
+
+    name = data.get("name") or ""
+    name_cn = data.get("name_cn") or ""
+    title = trim_title(name_cn or name)
+    if not title:
+        return None
+    origin_title = name if name_cn and name != name_cn else None
+
+    if poster is None:
+        poster = _protocol_relative((data.get("images") or {}).get("large"))
+    if poster is None:
+        return None
+
+    rating = data.get("rating") or {}
+    rate = Rate(
+        float(rating.get("score") or 0), int(rating.get("total") or 0), "Bangumi"
+    )
+    return BangumiTvShow(subject_id, title, origin_title, date, poster, rate)
+
+
+async def crawl_bangumi_index(
+    url: str, cache: bool = True, exclude_titles: Optional[List[str]] = None
+) -> List[BangumiTvShow]:
+    """Fetch one curated index list, completing each entry via the subject API."""
+    html = await async_http_get_with_cache(
+        url,
+        headers={"User-Agent": conf.USER_AGENT},
+        cache_ttl_m=conf.SOURCE_CACHE_TTL_MINUTES,
+        need_cache=cache,
+    )
+    if html is None:
+        return []
+
+    entries = _parse_index_page(html)
+    sem = asyncio.Semaphore(_SUBJECT_CONCURRENCY)
+    animes = await asyncio.gather(
+        *[_fetch_subject(sid, poster, cache, sem) for sid, poster in entries]
+    )
+
+    tv_shows: List[BangumiTvShow] = []
+    seen_names: set = set()
+    for anime in animes:
+        if anime is None or not check(anime, exclude_titles or []):
+            continue
+        titles = anime.get_titles()
+        if any(t in seen_names for t in titles):
+            continue
+        tv_shows.append(anime)
+        seen_names.update(titles)
+    return tv_shows
+
+
+async def crawl_bangumi_anime(
+    cache: bool = True, exclude_titles: Optional[List[str]] = None
+) -> List[BangumiTvShow]:
+    """Union of the ranked browser list and every curated index list."""
+    browser_shows, *index_lists = await asyncio.gather(
+        crawl_bangumi_tv_show_80(cache=cache, exclude_titles=exclude_titles),
+        *[
+            crawl_bangumi_index(url, cache=cache, exclude_titles=exclude_titles)
+            for url in _INDEX_URLS
+        ],
+    )
+
+    combined = list(browser_shows)
+    for index_shows in index_lists:
+        combined = combine_tv_show(combined, index_shows)
+    return combined
 
 
 def check(anime: BangumiTvShow, exclude_titles=None) -> bool:

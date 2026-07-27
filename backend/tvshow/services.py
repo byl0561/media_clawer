@@ -16,7 +16,7 @@ from core.local_config import (
 )
 from core.matching import drop_excluded
 from core.media_probe import async_has_subtitle
-from tvshow.crawlers.bangumi import crawl_bangumi_tv_show_80
+from tvshow.crawlers.bangumi import crawl_bangumi_anime
 from tvshow.crawlers.douban import crawl_dou_list
 from tvshow.crawlers.local import crawl_local, process_file
 from tvshow.crawlers.tmdb import get_tmdb_tv_show, get_tmdb_tv_show_season
@@ -136,7 +136,7 @@ async def anime_diff(sink=None) -> dict:
     if sink:
         await sink.report("正在爬取 Bangumi 动漫榜单…", 5)
     loop = asyncio.get_running_loop()
-    bangumi_shows = await crawl_bangumi_tv_show_80(exclude_titles=_anime_excludes())
+    bangumi_shows = await crawl_bangumi_anime(exclude_titles=_anime_excludes())
     if not bangumi_shows:
         raise UpstreamUnavailable()
 
@@ -261,7 +261,7 @@ async def refresh_all() -> None:
     await asyncio.gather(
         crawl_dou_list(_DOULIST_ALL, cache=False),
         crawl_dou_list(_DOULIST_RECENT, cache=False),
-        crawl_bangumi_tv_show_80(cache=False, exclude_titles=_anime_excludes()),
+        crawl_bangumi_anime(cache=False, exclude_titles=_anime_excludes()),
     )
     await asyncio.gather(
         _flush_tmdb(conf.TV_ROOT),
